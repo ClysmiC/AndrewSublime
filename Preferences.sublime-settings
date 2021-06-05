@@ -1,0 +1,35 @@
+// Settings in here override those in "Default/Preferences.sublime-settings",
+// and are overridden in turn by syntax-specific settings.
+{
+	"margin": 0,
+
+	// TODO - Set block theme color. See https://stackoverflow.com/questions/31262955/is-it-possible-to-have-a-block-cursor-in-sublime-text-3
+	"block_caret": true,
+	"caret_style": "blink",
+
+	"translate_tabs_to_spaces": false,
+
+	"draw_white_space": ["selection"],
+
+	"draw_indent_guides": true,
+	// "indent_guide_options": ["draw_active"],
+
+	"trim_trailing_white_space_on_save": "all",
+	"trim_only_modified_white_space": true,
+	"ensure_newline_at_eof_on_save": true,
+	"default_line_ending": "unix",
+
+	"drag_text": false,
+
+	"inactive_sheet_dimming": false,
+
+	"highlight_modified_tabs": true,
+
+	"show_encoding": true, // e.g. "UTF-8" in status bar
+
+	"hardware_acceleration": "opengl",
+	"ignored_packages":
+	[
+		"Vintage",
+	],
+}

@@ -1,0 +1,33 @@
+[
+	// Navigate to beginning/end
+	{ "keys": ["ctrl+a"], "command": "move_to", "args": {"to": "hardbol", "extend": false} },
+	{ "keys": ["ctrl+e"], "command": "move_to", "args": {"to": "hardeol", "extend": false} },
+
+	// Delete entire line
+	// TODO - move cursor upwards!
+	{ "keys": ["ctrl+shift+backspace"], "command": "run_macro_file", "args": {"file": "res://Packages/Default/Delete Line.sublime-macro"} },
+
+	// Select all
+	{ "keys": ["ctrl+h", "h"], "command": "select_all" },
+
+	// Switch active group (aka buffer)
+	{ "keys": ["ctrl+h", "o"], "command": "focus_neighboring_group" },
+
+	// Save
+	{ "keys": ["ctrl+h", "s"], "command": "save", "args": { "async": true } },
+	{ "keys": ["ctrl+h", "ctrl+s"], "command": "save_all", "args": { "async": true } },
+	{ "keys": ["ctrl+h", "w"], "command": "prompt_save_as" },
+
+	// Incremental search
+	{ "keys": ["ctrl+s"], "command": "show_panel", "args": {"panel": "incremental_find", "reverse": false} },
+	{ "keys": ["ctrl+r"], "command": "show_panel", "args": {"panel": "incremental_find", "reverse": true} },
+
+	// Replace
+	// TODO - y, n, !, . to replace next, skip next, replace all, and replace next + exit replace dialogue
+	// TODO - reverse replace? Not sure if I even have that bound in emacs
+	{ "keys": ["alt+r"], "command": "show_panel", "args": {"panel": "replace", "reverse": false} },
+
+	// TEST
+	// { "keys": ["ctrl+h"], "command": "example"},
+	// { "keys": ["ctrl+space"], "command": "andrew_toggle_mark"},
+]
