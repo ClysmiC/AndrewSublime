@@ -4,9 +4,9 @@
 	"margin": 0,
 
 	// TODO - Set block theme color. See https://stackoverflow.com/questions/31262955/is-it-possible-to-have-a-block-cursor-in-sublime-text-3
-	// "block_caret": true,
-	// "inverse_caret_state": true, // HMM - same as block_caret?
+	"block_caret": true,
 	"caret_style": "blink",
+	// "inverse_caret_state": true, // HMM - same as block_caret?
 
 	"auto_complete": false,
 

@@ -8,6 +8,7 @@ g_viewExDict = {}
 class ViewEx():
 	def __init__(self):
 		self.mark = -1
+		self.cntModificationToIgnore = 0
 
 def ensureViewEx(view):
 	result = g_viewExDict.get(view.id())
@@ -27,7 +28,7 @@ def clearMark(viewEx):
 def isSingleNonEmptySelection(selection):
 	return len(selection) == 1 and selection[0].a != selection[0].b
 
-def clearSelection(viewEx, selection, shouldClearMark=True):
+def clearSelectionToSingleCursor(viewEx, selection, shouldClearMark=True):
 	assert len(selection) > 0
 
 	# NOTE - Clobbers existing selections and multi-cursor
@@ -41,7 +42,7 @@ def clearSelection(viewEx, selection, shouldClearMark=True):
 def setMark(viewEx, selection, mark):
 	assert mark >= 0
 
-	clearSelection(viewEx, selection, shouldClearMark=False)
+	clearSelectionToSingleCursor(viewEx, selection, shouldClearMark=False)
 	viewEx.mark = mark
 
 # --- Text Commands
@@ -54,21 +55,20 @@ class AlsTrySetMarkCommand(sublime_plugin.TextCommand):
 		if len(selection) == 1:
 			setMark(ensureViewEx(self.view), selection, selection[0].b)
 
-class AlsClearSelectionOrCancel(sublime_plugin.TextCommand):
-	"""Clears the selection (and the mark) if they are active. Otherwise, runs 'cancel'"""
+
+
+class AlsClearSelectionCommand(sublime_plugin.TextCommand):
+	"""Clears the selection (and the mark) if they are active."""
 	def run(self, edit):
-		selection = self.view.sel()
-		cleared = False
+		clearSelectionToSingleCursor(ensureViewEx(self.view), self.view.sel())
 
-		if len(selection) == 1:
-			region = selection[0]
+class AlsTestInputHandlerCommand(sublime_plugin.WindowCommand):
+	def run(self):
+		pass
 
-			if not region.empty():
-				clearSelection(ensureViewEx(self.view), selection)
-				cleared = True
-
-		if not cleared:
-			self.view.run_command("cancel")
+	def input(self, arg):
+		# return AlsTextInputHandler()
+		pass
 
 # --- Listeners
 
@@ -78,16 +78,82 @@ class AlsViewEventListener(sublime_plugin.ViewEventListener):
 		selection = self.view.sel()
 
 		# NOTE - Altering the return value feeds the altered command back into this function.
-		#  Only return a tuple if you have actually altered things!
+		#  Only return a tuple if you have actually altered things, otherwise there is inifnite recursion!
 
-		if command_name == "move":
+		if command_name == "move" or command_name == "move_to":
 			if isMarkActive(viewEx, selection) and not args.get("extend", False):
-				print("extending move")
 				args["extend"] = True
 				return (command_name, args)
 
+		# NOTE - on_modified doesn't know what command caused the modification,
+		#  so we squirrel that info away so on_modified doesn't drop the selection
+
+		elif command_name == "swap_line_up" or command_name == "swap_line_down":
+			viewEx.cntModificationToIgnore += 1
+
+		# NOTE - Returning None goes ahead and executes the command
+
 		return None
 
+	def on_post_text_command(self, command_name, args):
+		# NOTE - Commands that don't modify the buffer are handled here.
+		#  All buffer-modifying commands are handled in on_modified
 
-	def on_selection_modified(self): # NOTE - Runs any time the cursor moves (A single cursor is considered a 0-wide selection)
+		viewEx = ensureViewEx(self.view)
+		selection = self.view.sel()
+
+		if command_name == "copy":
+			clearSelectionToSingleCursor(ensureViewEx(self.view), self.view.sel())
+
+	# def on_window_command(self, window, command_name, args):
+		# pass
+
+	def on_modified(self):
+		# NOTE - Anything that affects contents of buffer will hook into
+		#  this function
+
+		viewEx = ensureViewEx(self.view)
+
+		if viewEx.cntModificationToIgnore > 0:
+			viewEx.cntModificationToIgnore -= 1
+
+		else:
+			selection = self.view.sel()
+			clearSelectionToSingleCursor(ensureViewEx(self.view), self.view.sel())
+
+	def on_selection_modified(self):
+		viewEx = ensureViewEx(self.view)
+		selection = self.view.sel()
+
+		# NOTE - Stretch the selection to accomodate incremental search, etc.
+
+		if isMarkActive(viewEx, selection):
+			region = selection[0]
+
+			if viewEx.mark < region.begin():
+				selection.clear()
+				selection.add(sublime.Region(viewEx.mark, region.end()))
+
+			elif viewEx.mark > region.end():
+				selection.clear()
+				selection.add(sublime.Region(viewEx.mark, region.begin()))
+
+class AlsEventListener(sublime_plugin.EventListener):
+	def on_text_command(self, view, command_name, args):
+		# print("e/t " + command_name)
 		pass
+
+	def on_window_command(self, window, command_name, args):
+		# print("e/w " + command_name)
+		pass
+
+# class AlsTextInputHandler(sublime_plugin.TextInputHandler):
+# 	def name(self):
+# 		return "this string is the name of the argument that is being passed to the command"
+
+# 	def placeholder(self):
+# 		return "Big Chungus"
+
+# 	def confirm(self, text):
+# 		print(text)
+

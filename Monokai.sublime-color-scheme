@@ -30,6 +30,7 @@
 		"block_caret": "var(caret)",
         "block_caret_border": "var(caret)",
         "block_caret_underline": "var(caret)",
+        "block_caret_corner_style": "square",
 
 		"line_highlight": "var(line_highlight)",
 	},
