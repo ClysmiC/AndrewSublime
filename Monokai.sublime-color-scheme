@@ -1,0 +1,75 @@
+// Documentation at https://www.sublimetext.com/docs/color_schemes.html
+{
+	"variables":
+	{
+		"foreground": "#cbcca3",
+		"background": "#2a282a",
+		"line_highlight": "#383638",
+		"string": "#c9a071",
+		"comment": "#d0e65a",
+		"keyword_green": "#66e65c",
+		"keyword_white": "#ffffff",
+		"caret": "#7fff00",
+		"selection": "#696969",
+		"indent_guide": "color(var(foreground) alpha(0.10))",
+	},
+	"globals":
+	{
+		"foreground": "var(foreground)",
+		"invisibles": "color(var(foreground) alpha(0.60))", // NOTE - whitespace, when rendered
+		"background": "var(background)",
+
+		"guide": "var(indent_guide)",
+		"active_guide": "var(indent_guide)",	// NOTE - Active/stack guide are preferences with different behavior.
+		"stack_guide": "var(indent_guide)",		// Even if I want to turn on the altered behavior, I think I want it to be the same color.
+
+		"selection": "var(selection)",
+
+		// TODO - invert the color of the text behind the caret when it blinks on,
+		//  like in emacs?
+		"block_caret": "var(caret)",
+        "block_caret_border": "var(caret)",
+        "block_caret_underline": "var(caret)",
+
+		"line_highlight": "var(line_highlight)",
+	},
+	"rules":
+	[
+		{
+            "name": "Comment",
+            "scope": "comment",
+            "foreground": "var(comment)",
+            // "font_style": "italic",
+        },
+
+        {
+        	"name": "Control keywords",
+        	"scope": "keyword.control",
+        	"foreground": "var(keyword_white)",
+        },
+
+        {
+        	"name": "Include/import",
+        	"scope": "keyword.control.import",
+        	"foreground": "var(keyword_green)",
+        },
+
+        {
+        	"name": "Namespace name",
+        	"scope": "entity.name.namespace",
+        	"foreground": "var(keyword_green)",
+        },
+
+        {
+            "name": "String",
+            "scope": "string",
+            "foreground": "var(string)"
+        },
+
+        {
+            "name": "Keyword",
+            "scope": "keyword - (source.c keyword.operator | source.c++ keyword.operator | source.objc keyword.operator | source.objc++ keyword.operator), keyword.operator.word",
+            "foreground": "var(keyword_white)"
+        },
+	]
+}

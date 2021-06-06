@@ -4,20 +4,29 @@
 	"margin": 0,
 
 	// TODO - Set block theme color. See https://stackoverflow.com/questions/31262955/is-it-possible-to-have-a-block-cursor-in-sublime-text-3
-	"block_caret": true,
+	// "block_caret": true,
+	// "inverse_caret_state": true, // HMM - same as block_caret?
 	"caret_style": "blink",
+
+	"auto_complete": false,
+
+	"highlight_line": true,
 
 	"translate_tabs_to_spaces": false,
 
 	"draw_white_space": ["selection"],
 
 	"draw_indent_guides": true,
-	// "indent_guide_options": ["draw_active"],
+	"indent_guide_options": ["draw_active"],
 
 	"trim_trailing_white_space_on_save": "all",
 	"trim_only_modified_white_space": true,
 	"ensure_newline_at_eof_on_save": true,
 	"default_line_ending": "unix",
+
+	"mini_diff": false, // TODO - consider trying to re-enable this and make both add + modifiy the same color? I get it confused with saved/unsaved, so better off disabling I think
+
+	"auto_match_enabled": false,
 
 	"drag_text": false,
 
@@ -32,4 +41,13 @@
 	[
 		"Vintage",
 	],
+
+	"font_face": "Liberation Mono",
+	"font_size": 11.5,
+	"font_options": ["no_italic"],
+	// "font_size": 14, // big text, for streaming
+
+	// NOTE - color_scheme is a customized Monokai
+	"color_scheme": "Packages/Color Scheme - Default/Monokai.sublime-color-scheme",
+	"theme": "auto",
 }
