@@ -1,55 +1,43 @@
 // Settings in here override those in "Default/Preferences.sublime-settings",
 // and are overridden in turn by syntax-specific settings.
 {
-	"margin": 0,
-
-	// TODO - Set block theme color. See https://stackoverflow.com/questions/31262955/is-it-possible-to-have-a-block-cursor-in-sublime-text-3
-	"block_caret": true,
+	// --- Caret/line
+	"block_caret": true, 				// HMM - same as inverse_caret_state: true?
 	"caret_style": "blink",
-	// "inverse_caret_state": true, // HMM - same as block_caret?
-
-	"auto_complete": false,
-
 	"highlight_line": true,
 
-	"translate_tabs_to_spaces": false,
-
+	// --- White space / line endings
 	"draw_white_space": ["selection"],
-
-	"draw_indent_guides": true,
-	"indent_guide_options": ["draw_active"],
-
 	"trim_trailing_white_space_on_save": "all",
 	"trim_only_modified_white_space": true,
 	"ensure_newline_at_eof_on_save": true,
 	"default_line_ending": "unix",
+	"translate_tabs_to_spaces": false,	// HMM - Reconsider tab/space policy?
 
-	"mini_diff": false, // TODO - consider trying to re-enable this and make both add + modifiy the same color? I get it confused with saved/unsaved, so better off disabling I think
+	// --- Indent guides
+	"draw_indent_guides": true,
+	"indent_guide_options": ["draw_active"],
 
-	"auto_match_enabled": false,
-
-	"drag_text": false,
-
-	"inactive_sheet_dimming": false,
-
-	"copy_with_empty_selection": false, // HMM - Consider turning back on. Turned off to mitigate damage from accidental C-x misfires due to emacs brain.
-
-	"highlight_modified_tabs": true,
-
-	"show_encoding": true, // e.g. "UTF-8" in status bar
-
-	"hardware_acceleration": "opengl",
-	"ignored_packages":
-	[
-		"Vintage",
-	],
-
+	// --- Font
 	"font_face": "Liberation Mono",
 	"font_size": 11.5,
 	"font_options": ["no_italic"],
-	// "font_size": 14, // big text, for streaming
+	// "font_size": 14, 				// Big text, for streaming
 
-	// NOTE - color_scheme is a customized Monokai
+	// --- Color scheme
 	"color_scheme": "Packages/User/Andrew Olive.sublime-color-scheme",
 	"theme": "auto",
+
+	"inactive_sheet_dimming": false,
+	"mini_diff": false, 				// TODO - consider trying to re-enable this and make both add + modifiy the same color? I get it confused with saved/unsaved, so better off disabling I think
+	"margin": 0, 						// NOTE - Gutter
+	"show_encoding": true, 				// e.g. "UTF-8" in status bar
+	"highlight_modified_tabs": true,
+
+	// --- Misc.
+	"auto_match_enabled": false,		// NOTE - match delimiters, like (, {, ', "
+	"auto_complete": false,				// HMM - Consider looking into this feature and turning on some minimal tab-completion
+	"copy_with_empty_selection": false, // HMM - Consider turning back on. Turned off to mitigate damage from accidental C-x misfires due to emacs brain.
+	"drag_text": false,
+	"hardware_acceleration": "opengl",
 }

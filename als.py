@@ -23,6 +23,8 @@ def isMarkActive(viewEx, selection):
 	return viewEx.mark != -1 and len(selection) == 1
 
 def clearMark(viewEx):
+	if False: # debug
+		print("CLR")
 	viewEx.mark = -1
 
 def isSingleNonEmptySelection(selection):
@@ -86,12 +88,15 @@ class AlsViewEventListener(sublime_plugin.ViewEventListener):
 				return (command_name, args)
 
 		# NOTE - on_modified doesn't know what command caused the modification,
-		#  so we squirrel that info away so on_modified doesn't drop the selection
+		#  We squirrel that info away so on_modified knows if it should drop the selection
 
-		elif command_name == "swap_line_up" or command_name == "swap_line_down":
+		elif command_name == "swap_line_up" or \
+			 command_name == "swap_line_down" or \
+			 command_name == "indent" or \
+			 command_name == "unindent":
 			viewEx.cntModificationToIgnore += 1
 
-		# NOTE - Returning None goes ahead and executes the command
+		# Execute command unmodified
 
 		return None
 
@@ -113,12 +118,12 @@ class AlsViewEventListener(sublime_plugin.ViewEventListener):
 		#  this function
 
 		viewEx = ensureViewEx(self.view)
+		selection = self.view.sel()
 
 		if viewEx.cntModificationToIgnore > 0:
 			viewEx.cntModificationToIgnore -= 1
 
-		else:
-			selection = self.view.sel()
+		elif isMarkActive(viewEx, selection):
 			clearSelectionToSingleCursor(ensureViewEx(self.view), self.view.sel())
 
 	def on_selection_modified(self):
