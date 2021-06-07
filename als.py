@@ -1,3 +1,7 @@
+# TODO
+# - Fix swap line up/down with selection active from creeping into new lines
+# - Mark ring
+
 import sublime
 import sublime_plugin
 
@@ -7,8 +11,7 @@ g_viewExDict = {}
 
 class ViewEx():
 	def __init__(self):
-		self.mark = -1
-		self.cntModificationToIgnore = 0
+		clearMark(self)
 
 def ensureViewEx(view):
 	result = g_viewExDict.get(view.id())
@@ -26,6 +29,8 @@ def clearMark(viewEx):
 	if False: # debug
 		print("CLR")
 	viewEx.mark = -1
+	viewEx.cntModificationToIgnore = 0
+	viewEx.cntWantRefreshMark = 0
 
 def isSingleNonEmptySelection(selection):
 	return len(selection) == 1 and selection[0].a != selection[0].b
@@ -41,13 +46,18 @@ def clearSelectionToSingleCursor(viewEx, selection, shouldClearMark=True):
 	if shouldClearMark:
 		clearMark(viewEx)
 
-def setMark(viewEx, selection, mark):
+def placeMark(viewEx, selection, mark):
 	assert mark >= 0
 
 	clearSelectionToSingleCursor(viewEx, selection, shouldClearMark=False)
 	viewEx.mark = mark
 
+def matchMarkToSelection(viewEx, selection):
+	viewEx.mark = selection[0].a
+
+
 # --- Text Commands
+# NOTE - Prefixed with Als to distinguish between my commands and built-in sublime commands
 
 class AlsTrySetMarkCommand(sublime_plugin.TextCommand):
 	"""Sets the mark if there is an unambiguous cursor position (no selection, no multi-cursor)"""
@@ -55,7 +65,7 @@ class AlsTrySetMarkCommand(sublime_plugin.TextCommand):
 		selection = self.view.sel()
 
 		if len(selection) == 1:
-			setMark(ensureViewEx(self.view), selection, selection[0].b)
+			placeMark(ensureViewEx(self.view), selection, selection[0].b)
 
 
 
@@ -73,6 +83,7 @@ class AlsTestInputHandlerCommand(sublime_plugin.WindowCommand):
 		pass
 
 # --- Listeners
+# NOTE - Prefixed with Als to distinguish between my commands and built-in sublime commands
 
 class AlsViewEventListener(sublime_plugin.ViewEventListener):
 	def on_text_command(self, command_name, args):
@@ -91,8 +102,11 @@ class AlsViewEventListener(sublime_plugin.ViewEventListener):
 		#  We squirrel that info away so on_modified knows if it should drop the selection
 
 		elif command_name == "swap_line_up" or \
-			 command_name == "swap_line_down" or \
-			 command_name == "indent" or \
+			 command_name == "swap_line_down":
+			viewEx.cntModificationToIgnore += 1
+			viewEx.cntWantRefreshMark += 1
+
+		elif command_name == "indent" or \
 			 command_name == "unindent":
 			viewEx.cntModificationToIgnore += 1
 
@@ -135,22 +149,26 @@ class AlsViewEventListener(sublime_plugin.ViewEventListener):
 		if isMarkActive(viewEx, selection):
 			region = selection[0]
 
-			if viewEx.mark < region.begin():
-				selection.clear()
-				selection.add(sublime.Region(viewEx.mark, region.end()))
+			if viewEx.cntWantRefreshMark > 0:
+				# If refreshing the mark, we trust sublime's built-in region stuff to
+				#  move an entire selection, and re-plop the mark there
 
-			elif viewEx.mark > region.end():
-				selection.clear()
-				selection.add(sublime.Region(viewEx.mark, region.begin()))
+				matchMarkToSelection(viewEx, selection)
+				viewEx.cntWantRefreshMark -= 1
 
-class AlsEventListener(sublime_plugin.EventListener):
-	def on_text_command(self, view, command_name, args):
-		# print("e/t " + command_name)
-		pass
+			else:
+				# If not refreshing the mark, then we keep it in place and expand to it
 
-	def on_window_command(self, window, command_name, args):
-		# print("e/w " + command_name)
-		pass
+				if viewEx.mark < region.begin():
+					selection.clear()
+					selection.add(sublime.Region(viewEx.mark, region.end()))
+
+				elif viewEx.mark > region.end():
+					selection.clear()
+					selection.add(sublime.Region(viewEx.mark, region.begin()))
+
+
+# --- Example Text Input Handler
 
 # class AlsTextInputHandler(sublime_plugin.TextInputHandler):
 # 	def name(self):
