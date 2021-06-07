@@ -32,6 +32,8 @@
 
 	"inactive_sheet_dimming": false,
 
+	"copy_with_empty_selection": false, // HMM - Consider turning back on. Turned off to mitigate damage from accidental C-x misfires due to emacs brain.
+
 	"highlight_modified_tabs": true,
 
 	"show_encoding": true, // e.g. "UTF-8" in status bar
@@ -48,6 +50,6 @@
 	// "font_size": 14, // big text, for streaming
 
 	// NOTE - color_scheme is a customized Monokai
-	"color_scheme": "Packages/Color Scheme - Default/Monokai.sublime-color-scheme",
+	"color_scheme": "Packages/User/Andrew Olive.sublime-color-scheme",
 	"theme": "auto",
 }
