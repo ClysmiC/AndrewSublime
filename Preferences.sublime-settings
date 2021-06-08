@@ -48,6 +48,7 @@
 	"hardware_acceleration": "opengl",
 	"always_show_minimap_viewport": true,
 	"fold_buttons": false,
+	"match_selection": false, 			// HMM - turn this back on, but just use underlines?
 
 	"word_separators": "./\\()\"'-:,.;<>~!@#$%^&*|+=[]{}`~?_", // NOTE - added _ which corresponds with emacs behavior
 }

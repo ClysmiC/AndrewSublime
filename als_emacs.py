@@ -17,16 +17,16 @@ import traceback #debug
 g_viewExDict = {}
 
 class ViewEx():
-	def __init__(self, view, forward=True):
+	def __init__(self, view):
 		self.markSel = MarkSel(view)
-		self.iSearch = ISearch(view, self.markSel, forward)
+		self.iSearch = ISearch(view, self.markSel)
 
 	@staticmethod
-	def ensure(view, forward=True):
+	def get(view):
 		result = g_viewExDict.get(view.id())
 
 		if result is None:
-			result = ViewEx(view, forward)
+			result = ViewEx(view)
 			g_viewExDict[view.id()] = result
 
 		return result
@@ -40,9 +40,8 @@ class MarkSel():
 	FALLBACK_REGION = sublime.Region(0, 0)
 
 	@staticmethod
-	def ensure(view):
-		return ViewEx.ensure(view).markSel
-
+	def get(view):
+		return ViewEx.get(view).markSel
 
 	def __init__(self, view):
 		self.view = view
@@ -80,7 +79,7 @@ class MarkSel():
 			self.selection.add(sublime.Region(self.mark, self.mark))
 
 	def select(self, region, wantMark, wantShow=True):
-		# HMM - Maybe we should only validate here...?
+		# HMM - Maybe we should only validate here...? Instead of *NOT* validating here lol
 		self.selection.clear()
 		self.selection.add(region)
 		if wantMark:
@@ -113,15 +112,14 @@ class MarkSel():
 class AlsSetMark(sublime_plugin.TextCommand):
 	"""Sets the mark"""
 	def run(self, edit):
-		print("running set mark")
-		markSel = MarkSel.ensure(self.view)
+		markSel = MarkSel.get(self.view)
 		markSel.placeMark(clearSelection=True)
 
 class AlsClearSelection(sublime_plugin.TextCommand):
 
 	"""Clears the selection (and the mark)"""
 	def run(self, edit):
-		markSel = MarkSel.ensure(self.view)
+		markSel = MarkSel.get(self.view)
 		markSel.clearAll()
 
 
@@ -129,7 +127,7 @@ class AlsInflateSelectionToFillLines(sublime_plugin.TextCommand):
 
 	"""Inflates the selection (and the mark) to the beginning/end of the lines at the beginning/end of the selection"""
 	def run(self, edit):
-		markSel = MarkSel.ensure(self.view)
+		markSel = MarkSel.get(self.view)
 
 		region = markSel.selection[0]
 		isForwardOrEmpty = (region.a <= region.b)
@@ -174,27 +172,40 @@ class ISearch():
 	NO_FOCUS = sublime.Region(-1, -1)
 
 	@staticmethod
-	def ensure(view):
-		return ViewEx.ensure(view).iSearch
+	def get(view):
+		return ViewEx.get(view).iSearch
 
-	def __init__(self, view, markSel, forward):
+	def __init__(self, view, markSel):
+		# --- Persistent state
+		print("Initializing view " + str(view))
 		self.view = view
 		self.markSel = markSel
-		self.reset(openPanel=False)
-		self.forward = forward # NOTE - can toggle each search!
+		self.lastCommittedText = ""
 
-	def reset(self, openPanel=False):
+		# --- Temp state
+		self.cleanupTempState()
+
+
+	def cleanupTempState(self):
 		self.cursorOnOpen = -1
 		self.focus = sublime.Region(-1, -1)
 		self.text = ""
-		self.cleanupDrawings()
 		self.inputView = None
-		if openPanel:
-			self.inputView = self.view.window().show_input_panel(self.PANEL_NAME, "", self.onDone, self.onChange, self.onCancel)
+		self.autoPreferForward = True	# Smuggles in the correct forward value for the initial onChange(..) after show_input_panel(..)
+		self.cleanupDrawings()
+
+	def ensureOpen(self, forward):
+		self.autoPreferForward = forward
+
+		# HMM - Worried about this falling out of sync by missing an edge where we should cleanup(..)
+		#  ... but more woried about uncertainty of calling show_input_panel while it is already visible
+		if self.inputView is None:
+			textInitial = self.lastCommittedText if self.lastCommittedText else ""
+			self.inputView = self.view.window().show_input_panel(self.PANEL_NAME, textInitial, self.onDone, self.onChange, self.onCancel)
 
 	def forceClose(self):
 		self.window.run_command("hide_panel")
-		self.reset()
+		self.cleanup()
 
 	def cleanupDrawings(self):
 		self.view.erase_regions(self.FOUND_REGION_NAME)
@@ -203,26 +214,27 @@ class ISearch():
 	# --- Hooks
 
 	def onDone(self, text):
-		self.reset()
+		self.lastCommittedText = text
+		self.cleanupTempState()
 
 	def onChange(self, text):
-
 		if len(self.markSel.selection) != 1:
 			self.forceClose()
 			return
 
-		print("setting text to: " + text)
 		self.text = text
 		idealFocusStart = self.focus.a if self.focus.a != -1 else self.markSel.primaryCursor()
-		self.search(idealFocusStart)
+		self.search(self.autoPreferForward, nudge=False)
 
 	def onCancel(self):
-		self.cleanupDrawings()
+		self.cleanupTempState()
 
 	# --- Operations
 
 	def search(self, forward, nudge=False):
 		LOG = True
+
+		self.autoPreferForward = forward
 
 		if not self.text:
 			return
@@ -313,24 +325,22 @@ class AlsIncrementalSearch(sublime_plugin.TextCommand):
 
 		# --- Detect re-search
 		if self.view.element() == ISearch.INPUT_ELEMENT:
-			print("researching")
-
 			window = self.view.window()
 			viewSearchTarget = window.active_view()
 			if viewSearchTarget.element():
 				raise AssertionError("Unable to bootstrap access to view being edited (stuck with active_view: " + str(viewSearchTarget.element) + ")")
 
-			viewEx = ViewEx.ensure(viewSearchTarget, forward=forward)
-			viewEx.iSearch.search(forward, nudge=True)
+			viewEx = ViewEx.get(viewSearchTarget)
+			viewEx.iSearch.search(forward=forward, nudge=True)
 			return
 
 		# --- Bail if inside some other special view
 		if self.view.element():
 			return
 
-		viewEx = ViewEx.ensure(self.view, forward=forward)
+		viewEx = ViewEx.get(self.view)
 		viewEx.markSel.selectPrimaryRegion(wantMark=True)
-		viewEx.iSearch.reset(openPanel=True)
+		viewEx.iSearch.ensureOpen(forward=forward)
 
 
 
@@ -354,7 +364,7 @@ class AlsViewEventListener(sublime_plugin.ViewEventListener):
 		if False:
 			print("[view event listener] text_command: " + command_name)
 
-		viewEx = ViewEx.ensure(self.view)
+		viewEx = ViewEx.get(self.view)
 
 		if command_name == "move" or command_name == "move_to":
 			if viewEx.markSel.isMarkActive() and not args.get("extend", False):
@@ -383,7 +393,7 @@ class AlsViewEventListener(sublime_plugin.ViewEventListener):
 		# NOTE - Commands that don't modify the buffer are handled here.
 		#  All buffer-modifying commands are handled in on_modified
 
-		viewEx = ViewEx.ensure(self.view)
+		viewEx = ViewEx.get(self.view)
 
 		if command_name == "copy":
 			viewEx.markSel.clearAll()
@@ -410,10 +420,7 @@ class AlsViewEventListener(sublime_plugin.ViewEventListener):
 			viewEx.markSel.clearAll()
 
 	def on_selection_modified(self):
-		# viewEx = ViewEx.ensure(self.view)
-		# selection = self.view.sel()
-
-		markSel = MarkSel.ensure(self.view)
+		markSel = MarkSel.get(self.view)
 
 		# NOTE - Stretch the selection to accomodate incremental search, etc.
 
