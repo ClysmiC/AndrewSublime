@@ -96,15 +96,14 @@
 	{ "keys": ["alt+r"], "command": "show_panel", "args": {"panel": "replace", "reverse": false } },
 
 	// --- Emacs layer
-	{ "keys": ["ctrl+space"], "command": "als_try_set_mark" },
+	{ "keys": ["ctrl+space"], "command": "als_set_mark" },
+	{ "keys": ["alt+space"], "command": "als_inflate_selection_to_fill_lines" },
 	{ "keys": ["escape"], "command": "als_clear_selection", "context":
 		[
 			{ "key": "num_selections", "operator": "equal", "operand": 1 },
 			{ "key": "selection_empty", "operator": "equal", "operand": false, "match_all": true },
 		]
 	},
-	{ "keys": ["alt+space"], "command": "als_expand_selection_to_fill_lines" },
-	{ "keys": ["ctrl+space"], "command": "als_try_set_mark" },
 
 
 	// --- Scratchpad
