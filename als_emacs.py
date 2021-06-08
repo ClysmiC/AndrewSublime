@@ -161,8 +161,13 @@ class AlsIncrementalSearch(sublime_plugin.TextCommand):
 			return
 
 		cursor = selection[0].b
-		found = self.view.find_all(text, flags=sublime.LITERAL)
 
+		flags = sublime.LITERAL
+		hasAnyUppercase = any(c.isupper() for c in text)
+		if not hasAnyUppercase:
+			flags |= sublime.IGNORECASE
+
+		found = self.view.find_all(text, flags=flags)
 
 		if len(found) > 0:
 			idealFocus = self.cursorAtStart
@@ -197,6 +202,8 @@ class AlsIncrementalSearch(sublime_plugin.TextCommand):
 				found,
 				scope="region.greenish",
 				flags=sublime.DRAW_NO_FILL)
+		else:
+			self.cleanup()
 
 	def onCancel(self):
 		self.cleanup()
