@@ -1,8 +1,8 @@
 %YAML 1.2
 ---
-# http://www.sublimetext.com/docs/3/syntax.html
-# NOTE (als) - Simplified C++ syntax to identify (and color) just the things I care about
-#  Heavily borrowed from Default/C++.sublime-syntax
+http://www.sublimetext.com/docs/3/syntax.html
+NOTE (als) - Simplified C++ syntax to identify (and color) just the things I care about
+ Heavily borrowed from Default/C++.sublime-syntax
 
 name: C++ (als)
 file_extensions:

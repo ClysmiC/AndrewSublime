@@ -2,7 +2,7 @@
 // and are overridden in turn by syntax-specific settings.
 {
 	// --- Caret/line
-	"block_caret": true, 				// HMM - same as inverse_caret_state: true?
+	"block_caret": true, 				// HMM - same as (undocumented) inverse_caret_state: true?
 	"caret_style": "blink",
 	"highlight_line": true,
 
@@ -30,9 +30,16 @@
 
 	"inactive_sheet_dimming": false,
 	"mini_diff": false, 				// TODO - consider trying to re-enable this and make both add + modifiy the same color? I get it confused with saved/unsaved, so better off disabling I think
-	"margin": 0, 						// NOTE - Gutter
+	"margin": 12, 						// NOTE - Gutter
 	"show_encoding": true, 				// e.g. "UTF-8" in status bar
 	"highlight_modified_tabs": true,
+
+	// --- Git
+	"show_git_status_in_status_bar": false,
+	"show_git_status": false,
+
+	// --- Experimenting...
+	"mini_auto_complete": true, // see https://forum.sublimetext.com/t/making-tab-completion-in-st4-like-st3/58112/10
 
 	// --- Misc.
 	"auto_match_enabled": false,		// NOTE - match delimiters, like (, {, ', "
@@ -40,4 +47,6 @@
 	"copy_with_empty_selection": false, // HMM - Consider turning back on. Turned off to mitigate damage from accidental C-x misfires due to emacs brain.
 	"drag_text": false,
 	"hardware_acceleration": "opengl",
+	"always_show_minimap_viewport": true,
+	"fold_buttons": false,
 }

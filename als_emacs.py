@@ -1,5 +1,6 @@
 # TODO
-# - Fix swap line up/down with selection active from creeping into new lines
+# - End incremental search if I press a navigation key
+# - Better streamlined find/replace with yn.! options
 # - Mark ring
 
 import sublime
@@ -21,6 +22,8 @@ def ensureViewEx(view):
 		g_viewExDict[view.id()] = result
 
 	return result
+
+# --- Mark/selection operations
 
 def isMarkActive(viewEx, selection):
 	return viewEx.mark != -1 and len(selection) == 1
@@ -56,8 +59,7 @@ def matchMarkToSelection(viewEx, selection):
 	viewEx.mark = selection[0].a
 
 
-# --- Text Commands
-# NOTE - Prefixed with Als to distinguish between my commands and built-in sublime commands
+# --- Text Commands (Prefixed with 'Als' to distinguish between my commands and built-in sublime commands)
 
 class AlsTrySetMarkCommand(sublime_plugin.TextCommand):
 	"""Sets the mark if there is an unambiguous cursor position (no selection, no multi-cursor)"""
@@ -67,12 +69,34 @@ class AlsTrySetMarkCommand(sublime_plugin.TextCommand):
 		if len(selection) == 1:
 			placeMark(ensureViewEx(self.view), selection, selection[0].b)
 
-
-
 class AlsClearSelectionCommand(sublime_plugin.TextCommand):
 	"""Clears the selection (and the mark) if they are active."""
 	def run(self, edit):
 		clearSelectionToSingleCursor(ensureViewEx(self.view), self.view.sel())
+
+class AlsExpandSelectionToFillLines(sublime_plugin.TextCommand):
+	"""Expands the selection (and the mark) to the beginning/end of the lines at the beginning/end of the selection"""
+	def run(self, edit):
+		viewEx = ensureViewEx(self.view)
+		selection = self.view.sel()
+
+		if isMarkActive(viewEx, selection):
+			region = selection[0]
+			isForwardOrEmpty = (region.a <= region.b)
+
+			# NOTE - view.line(..)
+			#  - expands region (good)
+			#  - omits trailing \n (good),
+			#  - does NOT maintain reversed-ness (bad)
+			newRegion = self.view.line(region)
+
+			# ... so we fix it up
+			if not isForwardOrEmpty:
+				newRegion = sublime.Region(newRegion.b, newRegion.a)
+
+			selection.clear()
+			selection.add(newRegion)
+			matchMarkToSelection(viewEx, selection)
 
 class AlsTestInputHandlerCommand(sublime_plugin.WindowCommand):
 	def run(self):
@@ -102,13 +126,11 @@ class AlsViewEventListener(sublime_plugin.ViewEventListener):
 		#  We squirrel that info away so on_modified knows if it should drop the selection
 
 		elif command_name == "swap_line_up" or \
-			 command_name == "swap_line_down":
-			viewEx.cntModificationToIgnore += 1
-			viewEx.cntWantRefreshMark += 1
-
-		elif command_name == "indent" or \
+			 command_name == "swap_line_down" or \
+			 command_name == "indent" or \
 			 command_name == "unindent":
 			viewEx.cntModificationToIgnore += 1
+			viewEx.cntWantRefreshMark += 1
 
 		# Execute command unmodified
 
