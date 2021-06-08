@@ -10,21 +10,23 @@
 import sublime
 import sublime_plugin
 
+import traceback #debug
+
 # --- Extra state stored per view to enable behavior similar to emacs 'trasient-mark-mode'
 
 g_viewExDict = {}
 
 class ViewEx():
-	def __init__(self, view):
+	def __init__(self, view, forward=True):
 		self.markSel = MarkSel(view)
-		self.iSearch = ISearch(view, self.markSel)
+		self.iSearch = ISearch(view, self.markSel, forward)
 
 	@staticmethod
-	def ensure(view):
+	def ensure(view, forward=True):
 		result = g_viewExDict.get(view.id())
 
 		if result is None:
-			result = ViewEx(view)
+			result = ViewEx(view, forward)
 			g_viewExDict[view.id()] = result
 
 		return result
@@ -35,9 +37,12 @@ class ViewEx():
 
 class MarkSel():
 
+	FALLBACK_REGION = sublime.Region(0, 0)
+
 	@staticmethod
 	def ensure(view):
 		return ViewEx.ensure(view).markSel
+
 
 	def __init__(self, view):
 		self.view = view
@@ -51,11 +56,18 @@ class MarkSel():
 
 	# ---
 
+	@staticmethod
+	def ensureRegionValid(region):
+		if region is None or region.a < 0 or region.b < 0: # HMM - check upper bounds? That'd require view info...
+			return sublime.Region(0, 0)
+
+		return region
+
 	def primaryCursor(self):
 		return self.selection[0].b if len(self.selection) > 0 else 0
 
 	def primaryRegion(self):
-		return self.selection[0] if len(self.selection) > 0 else sublime.Region(0, 0)
+		return MarkSel.ensureRegionValid(self.selection[0] if len(self.selection) > 0 else FALLBACK_REGION) # @Slow - Redundant checks
 
 	def isMarkActive(self):
 		return self.mark >= 0 and len(self.selection) == 1
@@ -67,7 +79,8 @@ class MarkSel():
 			self.selection.clear()
 			self.selection.add(sublime.Region(self.mark, self.mark))
 
-	def select(self, region, wantMark):
+	def select(self, region, wantMark, wantShow=True):
+		# HMM - Maybe we should only validate here...?
 		self.selection.clear()
 		self.selection.add(region)
 		if wantMark:
@@ -75,8 +88,13 @@ class MarkSel():
 		else:
 			self.clearMark()
 
+		if wantShow:
+			self.view.show(region)
+
+		return region
+
 	def selectPrimaryRegion(self, wantMark):
-		self.select(self.primareRegion(), wantMark)
+		return self.select(self.primaryRegion(), wantMark)
 
 	def clearAll(self):
 		cursor = self.primaryCursor()
@@ -143,34 +161,44 @@ class AlsInflateSelectionToFillLines(sublime_plugin.TextCommand):
 
 # --- I-Search
 
-INPUT_ELEMENT = "input:input"
-I_SEARCH_PANEL = "i-search"
-I_SEARCH_FOUND_REGION = "als_i_search_found"
-I_SEARCH_FOCUS_REGION = "als_i_search_focus"
+# TODO
+# Reverse search
+# ‘Overwrapped’ search, which means that you are revisiting matches that you have already seen (i.e., starting from cursorOnOpen)
+
 
 class ISearch():
+	INPUT_ELEMENT = "input:input"
+	PANEL_NAME = "i-search"
+	FOUND_REGION_NAME = "als_i_search_found"
+	FOCUS_REGION_NAME = "als_i_search_focus"
+	NO_FOCUS = sublime.Region(-1, -1)
+
 	@staticmethod
 	def ensure(view):
 		return ViewEx.ensure(view).iSearch
 
-	def __init__(self, view, markSel):
+	def __init__(self, view, markSel, forward):
 		self.view = view
 		self.markSel = markSel
-		self.reset()
+		self.reset(openPanel=False)
+		self.forward = forward # NOTE - can toggle each search!
 
-	def reset(self):
+	def reset(self, openPanel=False):
 		self.cursorOnOpen = -1
 		self.focus = sublime.Region(-1, -1)
 		self.text = ""
 		self.cleanupDrawings()
+		self.inputView = None
+		if openPanel:
+			self.inputView = self.view.window().show_input_panel(self.PANEL_NAME, "", self.onDone, self.onChange, self.onCancel)
 
 	def forceClose(self):
 		self.window.run_command("hide_panel")
 		self.reset()
 
 	def cleanupDrawings(self):
-		self.view.erase_regions(I_SEARCH_FOUND_REGION)
-		self.view.erase_regions(I_SEARCH_FOCUS_REGION)
+		self.view.erase_regions(self.FOUND_REGION_NAME)
+		self.view.erase_regions(self.FOCUS_REGION_NAME)
 
 	# --- Hooks
 
@@ -178,13 +206,14 @@ class ISearch():
 		self.reset()
 
 	def onChange(self, text):
-		self.text = text
-		selection = self.view.sel()
-		if len(selection) != 1:
+
+		if len(self.markSel.selection) != 1:
 			self.forceClose()
 			return
 
-		idealFocusStart = self.focus.a if self.focus.a != -1 else selection[0].b
+		print("setting text to: " + text)
+		self.text = text
+		idealFocusStart = self.focus.a if self.focus.a != -1 else self.markSel.primaryCursor()
 		self.search(idealFocusStart)
 
 	def onCancel(self):
@@ -192,11 +221,19 @@ class ISearch():
 
 	# --- Operations
 
-	def search(self, forward):
+	def search(self, forward, nudge=False):
+		LOG = True
+
 		if not self.text:
 			return
 
-		self.markSel.selectPrimaryRegion(wantMark=True)
+		primaryRegion = self.markSel.selectPrimaryRegion(wantMark=True)
+
+		idealFocusBound = None
+		if forward:
+			idealFocusBound = primaryRegion.begin() + (1 if nudge else 0)
+		else:
+			idealFocusBound = primaryRegion.end() - (1 if nudge else 0)
 
 		flags = sublime.LITERAL
 		hasAnyUppercase = any(c.isupper() for c in self.text)
@@ -206,8 +243,10 @@ class ISearch():
 		found = self.view.find_all(self.text, flags=flags)
 
 		if len(found) > 0:
+			# Compute ideal match
+
 			debug_matchPrev = sublime.Region(-1, -1)
-			idealMatch = None
+			bestMatch = None
 
 			for match in found:
 
@@ -217,53 +256,81 @@ class ISearch():
 				if match.a <= debug_matchPrev.a:
 					raise AssertionError("find_all returned unsorted list?")
 
-				if match.a >= idealFocusStart:
-					print(f"match found at ({match.a}, {match.b}) - ifs: {idealFocusStart})")
-					idealMatch = match
+				if forward and match.a >= idealFocusBound:
+					# NOTE - This one breaks the loop, since we can only get further away in an increasing list
+					bestMatch = match
 					break
 
-				debug_matchPRev = match
+				elif not forward and match.b <= idealFocusBound:
+					# NOTE - This one doesn't, since we can only get closer and continue updating our ideal
+					bestMatch = match
 
-			if not idealMatch:
-				idealMatch = found[0] # wrap around to top, HMM - require extra keypress?
+				debug_matchPrev = match
 
-			self.focus = idealMatch
+			wrappedAround = False
+			if not bestMatch:
+				if forward: bestMatch = found[0]	# wrap around to top match, HMM - require extra keypress?
+				else:		bestMatch = found[-1]	# ... to bot match ...
+				wrappedAround = True
+
+			if not bestMatch: raise AssertionError("Why didn't we find a best match?")
+			# --- Lock in the match
+
+			self.focus = bestMatch
+			self.markSel.select(self.focus, wantMark=True, wantShow=True) # HMM - want mark here? # HMM - want to extend selection here?
 
 			# TODO - Make color match theme instead of hard-coding
 
 			# --- Found
 			self.view.add_regions(
-				I_SEARCH_FOUND_REGION,
+				self.FOUND_REGION_NAME,
 				found,
-				scope="region.greenish",
+				scope="region.orangish",
 				flags=sublime.DRAW_NO_FILL)
 
 			# --- Focus
 			self.view.add_regions(
-				I_SEARCH_FOCUS_REGION,
+				self.FOCUS_REGION_NAME,
 				[self.focus],
-				scope="region.greenish")
+				scope="invalid")
 
+			if LOG:
+				if wrappedAround:
+					if forward:	print(f"wraparound match found at ({match.a}, {match.b}) - ideal start: {idealFocusBound})")
+					else:		print(f"wraparound match (r) found at ({match.a}, {match.b}) - ideal end: {idealFocusBound})")
+				else:
+					if forward:	print(f"match found at ({match.a}, {match.b}) - ideal start: {idealFocusBound})")
+					else:		print(f"match (r) found at ({match.a}, {match.b}) - ideal end: {idealFocusBound})")
 		else:
 			self.cleanupDrawings()
+			if LOG:
+				if forward: print("No match found")
+				else: 		print("No match (r) found")
 
 class AlsIncrementalSearch(sublime_plugin.TextCommand):
 
-	def run(self, edit):
-		viewEx = ViewEx.ensure(self.view)
+	def run(self, edit, forward=True):
 
 		# --- Detect re-search
-		if self.view.element() == INPUT_ELEMENT:
-			viewEx.iSearch.search(self.focus.a + 1, forward=True)
+		if self.view.element() == ISearch.INPUT_ELEMENT:
+			print("researching")
+
+			window = self.view.window()
+			viewSearchTarget = window.active_view()
+			if viewSearchTarget.element():
+				raise AssertionError("Unable to bootstrap access to view being edited (stuck with active_view: " + str(viewSearchTarget.element) + ")")
+
+			viewEx = ViewEx.ensure(viewSearchTarget, forward=forward)
+			viewEx.iSearch.search(forward, nudge=True)
 			return
 
 		# --- Bail if inside some other special view
-		if self.view.element() is not None:
+		if self.view.element():
 			return
 
-		viewEx.markSel.selectPrimaryRegion()
-		viewEx.iSearch.reset()
-		self.view.window().show_input_panel(I_SEARCH_PANEL, "", self.onDone, self.onChange, self.onCancel)
+		viewEx = ViewEx.ensure(self.view, forward=forward)
+		viewEx.markSel.selectPrimaryRegion(wantMark=True)
+		viewEx.iSearch.reset(openPanel=True)
 
 
 

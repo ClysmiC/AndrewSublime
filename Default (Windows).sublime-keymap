@@ -49,6 +49,17 @@
 
 
 
+	// --- Lock font size (only changeable in prefs)
+	// 		# TODO - Do this with a plugin? EventListener doesn't seem to hook into this... I don't think there is an ApplicationCommandListener?
+	{ "keys": ["ctrl+keypad_plus"], "command": "nop" },
+	{ "keys": ["ctrl++"], "command": "nop" },
+	{ "keys": ["ctrl+="], "command": "nop" },
+	{ "keys": ["ctrl+keypad_minus"], "command": "nop" },
+	{ "keys": ["ctrl+-"], "command": "nop" },
+	{ "keys": ["ctrl+equals"], "command": "nop" },
+	{ "keys": ["ctrl+shift+equals"], "command": "nop" },
+	{ "keys": ["ctrl+shift+keypad_plus"], "command": "nop" },
+
 	// --- Save
 	{ "keys": ["ctrl+h", "s"], "command": "save", "args": { "async": true } },
 	{ "keys": ["ctrl+h", "ctrl+s"], "command": "save_all", "args": { "async": true } },
@@ -57,6 +68,7 @@
 	// --- Paste
 	{ "keys": ["ctrl+v"], "command": "paste_and_indent" },
 	{ "keys": ["ctrl+shift+v"], "command": "paste" },
+
 
 
 	//
@@ -106,7 +118,10 @@
 	},
 
 
+	// --- Search
+	{ "keys": ["ctrl+s"], "command": "als_incremental_search", "args": {"forward": true}},
+	{ "keys": ["ctrl+r"], "command": "als_incremental_search", "args": {"forward": false} },
+
 	// --- Scratchpad
-	{ "keys": ["ctrl+;"], "command": "als_incremental_search" }
 
 ]
