@@ -314,6 +314,7 @@ class ISearch():
 					if forward:	print(f"match found at ({match.a}, {match.b}) - ideal start: {idealFocusBound})")
 					else:		print(f"match (r) found at ({match.a}, {match.b}) - ideal end: {idealFocusBound})")
 		else:
+			# TODO - play beep here? change highlight line color?
 			self.cleanupDrawings()
 			if LOG:
 				if forward: print("No match found")
