@@ -22,15 +22,23 @@
 	{ "keys": ["ctrl+shift+a"], "command": "move_to", "args": {"to": "hardbol", "extend": true } },
 	{ "keys": ["ctrl+shift+e"], "command": "move_to", "args": {"to": "hardeol", "extend": true } },
 
-	// --- To begining/end of file
-	{ "keys": ["alt+shift+,"], "command": "move_to", "args": {"to": "bof" } },
-	{ "keys": ["alt+shift+."], "command": "move_to", "args": {"to": "eof" } },
-
 	// --- To empty line above/below
 	{ "keys": ["ctrl+up"], "command": "move", "args": {"by": "stops", "empty_line": true, "forward": false } },
 	{ "keys": ["ctrl+down"], "command": "move", "args": {"by": "stops", "empty_line": true, "forward": true } },
 	{ "keys": ["ctrl+shift+up"], "command": "move", "args": {"by": "stops", "empty_line": true, "forward": false, "extend": true } },
 	{ "keys": ["ctrl+shift+down"], "command": "move", "args": {"by": "stops", "empty_line": true, "forward": true, "extend": true } },
+
+	// --- To begining/end of file
+	{ "keys": ["alt+shift+,"], "command": "move_to", "args": {"to": "bof" } },
+	{ "keys": ["alt+shift+."], "command": "move_to", "args": {"to": "eof" } },
+
+	// -- Up/down a page
+	{ "keys": ["ctrl+alt+up"], "command": "move", "args": {"by": "pages", "forward": false} },
+	{ "keys": ["ctrl+alt+down"], "command": "move", "args": {"by": "pages", "forward": true} },
+
+	// --- Multi-cursor
+	{ "keys": ["ctrl+alt+shift+up"], "command": "select_lines", "args": {"forward": false} },
+	{ "keys": ["ctrl+alt+shift+down"], "command": "select_lines", "args": {"forward": true} },
 
 	// --- Swap lines up/down
 	{ "keys": ["alt+up"], "command": "swap_line_up" },
@@ -105,8 +113,9 @@
 	{ "keys": ["alt+r"], "command": "show_panel", "args": {"panel": "replace", "reverse": false } },
 
 	// --- Emacs layer
+	{ "keys": ["ctrl+alt+space"], "command": "als_inflate_selection_to_fill_lines" },
+	{ "keys": ["alt+space"], "command": "als_reverse_selection" },
 	{ "keys": ["ctrl+space"], "command": "als_set_mark" },
-	{ "keys": ["alt+space"], "command": "als_inflate_selection_to_fill_lines" },
 	{ "keys": ["escape"], "command": "als_clear_selection", "context":
 		[
 			{ "key": "num_selections", "operator": "equal", "operand": 1 },

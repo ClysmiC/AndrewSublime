@@ -1,8 +1,10 @@
 # TODO
 # - If initial text matches something but then the text gets changed, start back from the beginning of the search
 # - If active mark and then search forward a bunch of times and then backwards a bunch of times, shrink the selection back on the backwards searches
+# - Ensure selecion is robust against wraparound search and wraparound reverse search
 # - Better streamlined find/replace with yn.! options (see command mode? https://docs.sublimetext.io/reference/key_bindings.html#the-any-character-binding)
 # - (Experiment) Drop mark after incremental search selection?
+# - (Experiment) Consider always dropping a mark any time we have a selection? Why sholudn't shift insert a mark?
 # - Mark ring
 # - Jump focus to other sublime window (not just other view)
 # - Consolidate all open tabs to 1 window. Option to close duplicates?
@@ -42,15 +44,16 @@ class ViewEx():
 
 	# TODO - Delete from dict if view goes away?
 
+# --- Mark/selection
+
 class SelectionAction(Enum):
 	CLEAR 					= 0
 	KEEP 					= 1
 
 class MarkAction(Enum):
 	CLEAR					= 0
-	SET						= 1
-
-# --- Mark/selection
+	KEEP					= 1
+	SET						= 2
 
 class MarkSel():
 
@@ -70,7 +73,7 @@ class MarkSel():
 		self.cntModificationToIgnore = 0 	# State for re-jiggering selection during various commands
 		self.cntWantRefreshMark = 0			# ...
 
-	# ---
+	# --- Static utils
 
 	@staticmethod
 	def ensureRegionValid(region):
@@ -97,6 +100,8 @@ class MarkSel():
 	def reverseRegion(region):
 		return sublime.Region(region.b, region.a)
 
+	# --- Operations
+
 	def primaryCursor(self):
 		return self.selection[0].b if len(self.selection) > 0 else 0
 
@@ -106,6 +111,7 @@ class MarkSel():
 	def isMarkActive(self):
 		return self.mark >= 0 and len(self.selection) == 1
 
+	# NOTE - clear with clearMark(..)
 	def placeMark(self, selectionAction):
 		self.mark = self.primaryCursor()
 
@@ -116,6 +122,7 @@ class MarkSel():
 		elif selectionAction == SelectionAction.KEEP:
 			pass
 
+	# NOTE - clear with clearAll(..) or placeMark(SelectionAction.CLEAR)
 	def select(self, region, markAction, asExtension=False, wantShow=True):
 
 		if asExtension:
@@ -133,7 +140,8 @@ class MarkSel():
 		if markAction == MarkAction.CLEAR:
 			self.clearMark()
 
-		elif markAction == MarkAction.SET:
+		elif 	(markAction == MarkAction.SET) or \
+				(markAction == MarkAction.KEEP and self.markSel.isMarkActive()):
 			self.mark = region.a
 
 		return region
@@ -156,17 +164,22 @@ class MarkSel():
 # --- Text Commands (Prefixed with 'Als' to distinguish between my commands and built-in sublime commands)
 
 class AlsSetMark(sublime_plugin.TextCommand):
-	"""Sets the mark"""
+
 	def run(self, edit):
 		markSel = MarkSel.get(self.view)
 		markSel.placeMark(SelectionAction.CLEAR)
 
 class AlsClearSelection(sublime_plugin.TextCommand):
 
-	"""Clears the selection (and the mark)"""
 	def run(self, edit):
 		markSel = MarkSel.get(self.view)
 		markSel.clearAll()
+
+class AlsReverseSelection(sublime_plugin.TextCommand):
+
+	def run(self, edit):
+		markSel = MarkSel.get(self.view)
+		markSel.select(MarkSel.reverseRegion(markSel.primaryRegion()), MarkAction.SET)
 
 class AlsInflateSelectionToFillLines(sublime_plugin.TextCommand):
 
@@ -174,7 +187,8 @@ class AlsInflateSelectionToFillLines(sublime_plugin.TextCommand):
 	def run(self, edit):
 		markSel = MarkSel.get(self.view)
 
-		newRegion = MarkSel.extendRegion(markSel.primaryRegion(), self.view.line(primaryRegion))
+		oldRegion = markSel.primaryRegion()
+		newRegion = MarkSel.extendRegion(oldRegion, self.view.line(oldRegion))
 		markSel.select(newRegion, MarkAction.SET)
 
 class AlsHidePanelThenRun(sublime_plugin.TextCommand):
@@ -280,7 +294,7 @@ class ISearch():
 	# --- Operations
 
 	def search(self, forward, nudge=False):
-		LOG = True
+		LOG = False
 
 		self.autoPreferForward = forward
 
@@ -303,8 +317,8 @@ class ISearch():
 			idealFocusBound = startFrom.end() - (1 if nudge else 0)
 
 		flags = sublime.LITERAL
-		hasAnyUppercase = any(c.isupper() for c in self.text)
-		if not hasAnyUppercase:
+		hasNoUppercase = all(not c.isupper() for c in self.text)
+		if hasNoUppercase:
 			flags |= sublime.IGNORECASE
 
 		found = self.view.find_all(self.text, flags=flags)
