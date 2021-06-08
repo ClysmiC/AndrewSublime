@@ -20,7 +20,7 @@
 
 	// --- Font
 	"font_face": "Liberation Mono",
-	"font_size": 11.5,
+	"font_size": 13.5,
 	"font_options": ["no_italic"],
 	// "font_size": 14, 				// Big text, for streaming
 

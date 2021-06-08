@@ -1,7 +1,11 @@
 # TODO
 # - End incremental search if I press a navigation key
 # - Better streamlined find/replace with yn.! options
+# - (Experiment) Drop mark after incremental search selection?
 # - Mark ring
+# - Jump focus to other sublime window (not just other view)
+# - Consolidate all open tabs to 1 window. Option to close duplicates?
+# - Force h on left and cpp on right?
 
 import sublime
 import sublime_plugin
@@ -13,6 +17,13 @@ g_viewExDict = {}
 class ViewEx():
 	def __init__(self):
 		clearMark(self)
+
+def clearMark(viewEx):
+	if False: # debug
+		print("CLR")
+	viewEx.mark = -1
+	viewEx.cntModificationToIgnore = 0
+	viewEx.cntWantRefreshMark = 0
 
 def ensureViewEx(view):
 	result = g_viewExDict.get(view.id())
@@ -27,13 +38,6 @@ def ensureViewEx(view):
 
 def isMarkActive(viewEx, selection):
 	return viewEx.mark != -1 and len(selection) == 1
-
-def clearMark(viewEx):
-	if False: # debug
-		print("CLR")
-	viewEx.mark = -1
-	viewEx.cntModificationToIgnore = 0
-	viewEx.cntWantRefreshMark = 0
 
 def isSingleNonEmptySelection(selection):
 	return len(selection) == 1 and selection[0].a != selection[0].b
@@ -61,7 +65,7 @@ def matchMarkToSelection(viewEx, selection):
 
 # --- Text Commands (Prefixed with 'Als' to distinguish between my commands and built-in sublime commands)
 
-class AlsTrySetMarkCommand(sublime_plugin.TextCommand):
+class AlsTrySetMark(sublime_plugin.TextCommand):
 	"""Sets the mark if there is an unambiguous cursor position (no selection, no multi-cursor)"""
 	def run(self, edit):
 		selection = self.view.sel()
@@ -69,12 +73,14 @@ class AlsTrySetMarkCommand(sublime_plugin.TextCommand):
 		if len(selection) == 1:
 			placeMark(ensureViewEx(self.view), selection, selection[0].b)
 
-class AlsClearSelectionCommand(sublime_plugin.TextCommand):
+class AlsClearSelection(sublime_plugin.TextCommand):
+
 	"""Clears the selection (and the mark) if they are active."""
 	def run(self, edit):
 		clearSelectionToSingleCursor(ensureViewEx(self.view), self.view.sel())
 
 class AlsExpandSelectionToFillLines(sublime_plugin.TextCommand):
+
 	"""Expands the selection (and the mark) to the beginning/end of the lines at the beginning/end of the selection"""
 	def run(self, edit):
 		viewEx = ensureViewEx(self.view)
@@ -98,7 +104,23 @@ class AlsExpandSelectionToFillLines(sublime_plugin.TextCommand):
 			selection.add(newRegion)
 			matchMarkToSelection(viewEx, selection)
 
+class AlsHidePanelThenRun(sublime_plugin.TextCommand):
+	"""Auto-close a panel and jump right back into the normal view with a command"""
+	def run(self, edit, **kwargs):
+		print("Running als_hide_panel_then_run_command")
+		if self.view.element() != "incremental_find:input":
+			raise AssertionError("Illegal context for this command")
+
+		command_name = kwargs.pop('command_name', None)
+		w = self.view.window()
+		w.run_command("hide_panel")
+		w.run_command(command_name, kwargs)
+
+
+# ---
+
 class AlsTestInputHandlerCommand(sublime_plugin.WindowCommand):
+
 	def run(self):
 		pass
 
@@ -106,10 +128,19 @@ class AlsTestInputHandlerCommand(sublime_plugin.WindowCommand):
 		# return AlsTextInputHandler()
 		pass
 
-# --- Listeners
-# NOTE - Prefixed with Als to distinguish between my commands and built-in sublime commands
+# --- Listeners/Hooks
+
+class AlsEventListener(sublime_plugin.EventListener):
+	def on_text_command(self, view, command_name, args):
+		if True:
+			print("[event listener] text_command: " + command_name)
+
+	def on_window_command(self, window, command_name, args):
+		if True:
+			print("[event listener] window_command: " + command_name)
 
 class AlsViewEventListener(sublime_plugin.ViewEventListener):
+
 	def on_text_command(self, command_name, args):
 		viewEx = ensureViewEx(self.view)
 		selection = self.view.sel()
@@ -136,18 +167,27 @@ class AlsViewEventListener(sublime_plugin.ViewEventListener):
 
 		return None
 
+	# TODO - Get this hook running on incremental find window!!!
 	def on_post_text_command(self, command_name, args):
+		if True: #debug
+			print("on_post_text_command")
+
 		# NOTE - Commands that don't modify the buffer are handled here.
 		#  All buffer-modifying commands are handled in on_modified
 
-		viewEx = ensureViewEx(self.view)
-		selection = self.view.sel()
+		view = self.view
+		viewEx = ensureViewEx(view)
+		selection = view.sel()
 
 		if command_name == "copy":
-			clearSelectionToSingleCursor(ensureViewEx(self.view), self.view.sel())
+			clearSelectionToSingleCursor(viewEx, selection)
 
-	# def on_window_command(self, window, command_name, args):
-		# pass
+		isMoveCommand = (command_name == "move" or command_name == "move_to")
+
+		if isSingleNonEmptySelection(view) and isMoveCommand and (view.element() == "incremental_find:input"):
+			window = view.window()
+			view.close() 							# Close the incremental find view
+			window.run_command(command_name, args) 	# Forward command view that sublime gives focus to
 
 	def on_modified(self):
 		# NOTE - Anything that affects contents of buffer will hook into
@@ -188,7 +228,6 @@ class AlsViewEventListener(sublime_plugin.ViewEventListener):
 				elif viewEx.mark > region.end():
 					selection.clear()
 					selection.add(sublime.Region(viewEx.mark, region.begin()))
-
 
 # --- Example Text Input Handler
 
