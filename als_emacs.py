@@ -1,6 +1,6 @@
 # TODO
 # - End incremental search if I press a navigation key
-# - Better streamlined find/replace with yn.! options
+# - Better streamlined find/replace with yn.! options (see command mode? https://docs.sublimetext.io/reference/key_bindings.html#the-any-character-binding)
 # - (Experiment) Drop mark after incremental search selection?
 # - Mark ring
 # - Jump focus to other sublime window (not just other view)
@@ -30,6 +30,13 @@ class ViewEx():
 			g_viewExDict[view.id()] = result
 
 		return result
+
+	@staticmethod
+	def getActiveView(window):
+		activeView = window.active_view()
+		if activeView is None:		raise AssertionError("No active view?")
+		if activeView.element():	raise AssertionError("Active view has a truthy element(..) value?")
+		return activeView
 
 	# TODO - Delete from dict if view goes away?
 
@@ -144,18 +151,18 @@ class AlsInflateSelectionToFillLines(sublime_plugin.TextCommand):
 
 		markSel.select(newRegion, wantMark=markSel.isMarkActive())
 
-# class AlsHidePanelThenRun(sublime_plugin.TextCommand):
-# 	"""Auto-close a panel and jump right back into the normal view with a command"""
-# 	def run(self, edit, **kwargs):
-# 		print("Running als_hide_panel_then_run_command")
-# 		if self.view.element() != "incremental_find:input":
-# 			raise AssertionError("Illegal context for this command")
+class AlsHidePanelThenRun(sublime_plugin.TextCommand):
+	"""Auto-close a panel and jump right back into the normal view with a command"""
+	def run(self, edit, **kwargs):
+		window = self.view.window()
+		window.run_command("hide_panel")
 
-# 		command_name = kwargs.pop('command_name', None)
-# 		w = self.view.window()
-# 		w.run_command("hide_panel")
-# 		w.run_command(command_name, kwargs)
+		view = ViewEx.getActiveView(window)
+		viewEx = ViewEx.get(view)
+		viewEx.markSel.clearAll()
 
+		command_name = kwargs.pop('command_name', None)
+		view.run_command(command_name, kwargs)
 
 # --- I-Search
 
@@ -177,7 +184,9 @@ class ISearch():
 
 	def __init__(self, view, markSel):
 		# --- Persistent state
-		print("Initializing view " + str(view))
+		LOG = False
+		if LOG:	print("Initializing view " + str(view))
+
 		self.view = view
 		self.markSel = markSel
 		self.lastCommittedText = ""
@@ -213,6 +222,18 @@ class ISearch():
 
 	# --- Hooks
 
+	@staticmethod
+	def on_text_command(viewInput, command_name, args):
+		# NOTE - Hooked into by EventListener
+		if viewInput.element() != ISearch.INPUT_ELEMENT:	raise AssertionError(f"Expected viewInput to be {ISearch.INPUT_ELEMENT}")
+
+		if command_name == "move" or command_name == "move_to":
+			args["command_name"] = command_name
+			viewInput.run_command("als_hide_panel_then_run", args)
+			return ("", None)
+
+		return None
+
 	def onDone(self, text):
 		self.lastCommittedText = text
 		self.cleanupTempState()
@@ -224,7 +245,7 @@ class ISearch():
 
 		self.text = text
 		idealFocusStart = self.focus.a if self.focus.a != -1 else self.markSel.primaryCursor()
-		self.search(self.autoPreferForward, nudge=False)
+		self.search(self.autoPreferForward, False)
 
 	def onCancel(self):
 		self.cleanupTempState()
@@ -285,7 +306,6 @@ class ISearch():
 				else:		bestMatch = found[-1]	# ... to bot match ...
 				wrappedAround = True
 
-			if not bestMatch: raise AssertionError("Why didn't we find a best match?")
 			# --- Lock in the match
 
 			self.focus = bestMatch
@@ -320,25 +340,25 @@ class ISearch():
 				if forward: print("No match found")
 				else: 		print("No match (r) found")
 
+
+
 class AlsIncrementalSearch(sublime_plugin.TextCommand):
 
 	def run(self, edit, forward=True):
 
+		viewTarget = ViewEx.getActiveView(self.view.window())
+
 		# --- Detect re-search
 		if self.view.element() == ISearch.INPUT_ELEMENT:
-			window = self.view.window()
-			viewSearchTarget = window.active_view()
-			if viewSearchTarget.element():
-				raise AssertionError("Unable to bootstrap access to view being edited (stuck with active_view: " + str(viewSearchTarget.element) + ")")
-
-			viewEx = ViewEx.get(viewSearchTarget)
-			viewEx.iSearch.search(forward=forward, nudge=True)
+			viewExTarget = ViewEx.get(viewTarget)
+			viewExTarget.iSearch.search(forward=forward, nudge=True)
 			return
 
 		# --- Bail if inside some other special view
 		if self.view.element():
 			return
 
+		# --- We're just inside a normal view. Open up the search bar.
 		viewEx = ViewEx.get(self.view)
 		viewEx.markSel.selectPrimaryRegion(wantMark=True)
 		viewEx.iSearch.ensureOpen(forward=forward)
@@ -349,12 +369,21 @@ class AlsIncrementalSearch(sublime_plugin.TextCommand):
 
 class AlsEventListener(sublime_plugin.EventListener):
 	def on_text_command(self, view, command_name, args):
-		if False:
-			print("[event listener] text_command: " + command_name)
+		LOG = False
+		if LOG:	print("[event listener] text_command: " + command_name)
+
+		# NOTE - We only seem to pick up on these in the EventListener, not the ViewEventListener... for whatever reason.
+
+		if view.element() == ISearch.INPUT_ELEMENT:
+			return ISearch.on_text_command(view, command_name, args)
+
+		return None
 
 	def on_window_command(self, window, command_name, args):
-		if False:
-			print("[event listener] window_command: " + command_name)
+		LOG = False
+		if LOG: print("[event listener] window_command: " + command_name)
+
+		return None
 
 class AlsViewEventListener(sublime_plugin.ViewEventListener):
 
@@ -362,10 +391,14 @@ class AlsViewEventListener(sublime_plugin.ViewEventListener):
 		# IMPORTANT - Altering the return value feeds the altered command back into this function.
 		#  Only return a tuple if you have actually altered things, otherwise there is inifnite recursion!
 
-		if False:
-			print("[view event listener] text_command: " + command_name)
+		LOG = False
+		if LOG:	print("[view event listener] text_command: " + command_name)
+
+		if self.view.element():	raise AssertionError("Expected input view's text_commands to come through EventListener instead of ViewEventListener...")
 
 		viewEx = ViewEx.get(self.view)
+
+		# Extend moves
 
 		if command_name == "move" or command_name == "move_to":
 			if viewEx.markSel.isMarkActive() and not args.get("extend", False):
@@ -386,10 +419,9 @@ class AlsViewEventListener(sublime_plugin.ViewEventListener):
 
 		return None
 
-	# TODO - Get this hook running on incremental find window!!!
 	def on_post_text_command(self, command_name, args):
-		if False:
-			print("[view event listener] on_post_text_command")
+		LOG = False
+		if LOG:	print("[view event listener] on_post_text_command")
 
 		# NOTE - Commands that don't modify the buffer are handled here.
 		#  All buffer-modifying commands are handled in on_modified
@@ -399,20 +431,13 @@ class AlsViewEventListener(sublime_plugin.ViewEventListener):
 		if command_name == "copy":
 			viewEx.markSel.clearAll()
 
-		# TODO - Remove if I get i-search up and running
-		# isMoveCommand = (command_name == "move" or command_name == "move_to")
-		# if viewEx.markSel.isSingleNonEmptySelection() and isMoveCommand and (self.view.element() == "incremental_find:input"):
-		# 	window = view.window()
-		# 	view.close() 							# Close the incremental find view
-		# 	window.run_command(command_name, args) 	# Forward command view that sublime gives focus to
-
 	def on_modified(self):
 		# NOTE - Anything that affects contents of buffer will hook into
 		#  this function
-		if False:
-			print("[view event listener] on_modified")
+		LOG = False
+		if LOG:	print("[view event listener] on_modified")
 
-		viewEx = ViewEx.ensure(self.view)
+		viewEx = ViewEx.get(self.view)
 
 		if viewEx.markSel.cntModificationToIgnore > 0:
 			viewEx.markSel.cntModificationToIgnore -= 1
@@ -422,6 +447,9 @@ class AlsViewEventListener(sublime_plugin.ViewEventListener):
 
 	def on_selection_modified(self):
 		markSel = MarkSel.get(self.view)
+
+		LOG = False
+		if LOG:	print("[view event listener] selection_modified")
 
 		# NOTE - Stretch the selection to accomodate incremental search, etc.
 
@@ -446,6 +474,12 @@ class AlsViewEventListener(sublime_plugin.ViewEventListener):
 			# 	elif viewEx.mark > region.end():
 			# 		selection.clear()
 			# 		selection.add(sublime.Region(viewEx.mark, region.begin()))
+
+
+
+
+
+
 
 # --- Example Text Input Handler
 
