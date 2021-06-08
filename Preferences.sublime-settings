@@ -20,12 +20,11 @@
 
 	// --- Font
 	"font_face": "Liberation Mono",
-	"font_size": 13.5,
+	"font_size": 12.0, // Default value: 12
 	"font_options": ["no_italic"],
-	// "font_size": 14, 				// Big text, for streaming
 
 	// --- Color scheme
-	"color_scheme": "Packages/User/Andrew Olive.sublime-color-scheme",
+	"color_scheme": "Packages/Color Scheme - Default/Monokai.sublime-color-scheme",
 	"theme": "auto",
 
 	"inactive_sheet_dimming": false,
@@ -42,11 +41,13 @@
 	"mini_auto_complete": true, // see https://forum.sublimetext.com/t/making-tab-completion-in-st4-like-st3/58112/10
 
 	// --- Misc.
-	"auto_match_enabled": false,		// NOTE - match delimiters, like (, {, ', "
+	"auto_match_enabled": false,		// NOTE - match delimiters, like ( { ' "
 	"auto_complete": false,				// HMM - Consider looking into this feature and turning on some minimal tab-completion
 	"copy_with_empty_selection": false, // HMM - Consider turning back on. Turned off to mitigate damage from accidental C-x misfires due to emacs brain.
 	"drag_text": false,
 	"hardware_acceleration": "opengl",
 	"always_show_minimap_viewport": true,
 	"fold_buttons": false,
+
+	"word_separators": "./\\()\"'-:,.;<>~!@#$%^&*|+=[]{}`~?_", // NOTE - added _ which corresponds with emacs behavior
 }

@@ -19,7 +19,7 @@ class ViewEx():
 		clearMark(self)
 
 def clearMark(viewEx):
-	if False: # debug
+	if False:
 		print("CLR")
 	viewEx.mark = -1
 	viewEx.cntModificationToIgnore = 0
@@ -117,31 +117,87 @@ class AlsHidePanelThenRun(sublime_plugin.TextCommand):
 		w.run_command(command_name, kwargs)
 
 
-# ---
+# --- I-Search
 
-class AlsTestInputHandlerCommand(sublime_plugin.WindowCommand):
+I_SEARCH_PANEL = "i-search"
+I_SEARCH_FOUND_REGION = "als_i_search_found"
+I_SEARCH_FOCUS_REGION = "als_i_search_focus"
+
+class AlsIncrementalSearch(sublime_plugin.WindowCommand):
+	targetView = None
+	targetViewEx = None
 
 	def run(self):
-		pass
+		print("runnin i-search")
+		self.targetView = self.window.active_view()
 
-	def input(self, arg):
-		# return AlsTextInputHandler()
-		pass
+		if self.targetView is None or self.targetView.element() is not None:
+			return
+
+		self.targetViewEx = ensureViewEx(self.targetView)
+		selection = self.targetView.sel()
+
+		if len(selection) != 1:
+			return
+
+		self.window.show_input_panel(I_SEARCH_PANEL, "", self.onDone, self.onChange, self.onCancel)
+
+	def onDone(self, text):
+		self.cleanup()
+
+	def onChange(self, text):
+		if not text:
+			return
+
+		selection = self.targetView.sel()
+
+		if len(selection) != 1:
+			self.forceClose()
+			return
+
+		cursor = selection[0].b
+		found = self.targetView.find(text, cursor, sublime.LITERAL)
+
+		if found.a >= 0:
+			# TODO - Make color match theme instead of hard-coding
+			self.targetView.add_regions(
+				I_SEARCH_FOUND_REGION,
+				[found],
+				scope="region.greenish")
+
+	def onCancel(self):
+		self.cleanup()
+
+	def forceClose(self):
+		if False:
+			print("force closing " + I_SEARCH_PANEL)
+
+		self.window.run_command("hide_panel")
+		self.cleanup()
+
+	def cleanup(self):
+		self.targetView.erase_regions(I_SEARCH_FOUND_REGION)
+		self.targetView.erase_regions(I_SEARCH_FOCUS_REGION)
+
+
 
 # --- Listeners/Hooks
 
 class AlsEventListener(sublime_plugin.EventListener):
 	def on_text_command(self, view, command_name, args):
-		if True:
+		if False:
 			print("[event listener] text_command: " + command_name)
 
 	def on_window_command(self, window, command_name, args):
-		if True:
+		if False:
 			print("[event listener] window_command: " + command_name)
 
 class AlsViewEventListener(sublime_plugin.ViewEventListener):
 
 	def on_text_command(self, command_name, args):
+		if False:
+			print("[view event listener] text_command: " + command_name)
+
 		viewEx = ensureViewEx(self.view)
 		selection = self.view.sel()
 
@@ -169,8 +225,8 @@ class AlsViewEventListener(sublime_plugin.ViewEventListener):
 
 	# TODO - Get this hook running on incremental find window!!!
 	def on_post_text_command(self, command_name, args):
-		if True: #debug
-			print("on_post_text_command")
+		if False:
+			print("[view event listener] on_post_text_command")
 
 		# NOTE - Commands that don't modify the buffer are handled here.
 		#  All buffer-modifying commands are handled in on_modified
@@ -192,6 +248,8 @@ class AlsViewEventListener(sublime_plugin.ViewEventListener):
 	def on_modified(self):
 		# NOTE - Anything that affects contents of buffer will hook into
 		#  this function
+		if False:
+			print("[view event listener] on_modified")
 
 		viewEx = ensureViewEx(self.view)
 		selection = self.view.sel()
@@ -231,13 +289,32 @@ class AlsViewEventListener(sublime_plugin.ViewEventListener):
 
 # --- Example Text Input Handler
 
-# class AlsTextInputHandler(sublime_plugin.TextInputHandler):
+# class AlsIncrementalSearch(sublime_plugin.TextCommand):
+
+# 	def input(self, args):
+# 		return AlsIncrementalSearchInputHandler(self.view)
+
+# 	def run(self, **kwargs):
+# 		print("Running the command")
+
+
+
+# class AlsIncrementalSearchInputHandler(sublime_plugin.TextInputHandler):
+
+# 	def __init__(self, view):
+# 		self.view = view
+
 # 	def name(self):
-# 		return "this string is the name of the argument that is being passed to the command"
+# 		return "als_incremental_search"
 
 # 	def placeholder(self):
 # 		return "Big Chungus"
 
 # 	def confirm(self, text):
-# 		print(text)
+# 		print("Hello from " + text)
+
+# 	def preview(self, text):
+# 		print("Current text: " + text)
+# 		view.run_command()
+# 		return None
 

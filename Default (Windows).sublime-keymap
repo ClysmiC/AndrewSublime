@@ -12,16 +12,21 @@
 	{ "keys": ["ctrl+h", "b"], "command": "toggle_side_bar" },
 
 
+
+	//
 	// --- Navigate cursor...
-	//  to beginnning/end of line
+
+	// --- To beginnning/end of line
 	{ "keys": ["ctrl+a"], "command": "move_to", "args": {"to": "hardbol" } },
 	{ "keys": ["ctrl+e"], "command": "move_to", "args": {"to": "hardeol" } },
 	{ "keys": ["ctrl+shift+a"], "command": "move_to", "args": {"to": "hardbol", "extend": true } },
 	{ "keys": ["ctrl+shift+e"], "command": "move_to", "args": {"to": "hardeol", "extend": true } },
-	//  to begining/end of file
+
+	// --- To begining/end of file
 	{ "keys": ["alt+shift+,"], "command": "move_to", "args": {"to": "bof" } },
 	{ "keys": ["alt+shift+."], "command": "move_to", "args": {"to": "eof" } },
-	//  of open/close pair
+
+	// --- To empty line above/below
 	{ "keys": ["ctrl+up"], "command": "move", "args": {"by": "stops", "empty_line": true, "forward": false } },
 	{ "keys": ["ctrl+down"], "command": "move", "args": {"by": "stops", "empty_line": true, "forward": true } },
 	{ "keys": ["ctrl+shift+up"], "command": "move", "args": {"by": "stops", "empty_line": true, "forward": false, "extend": true } },
@@ -41,33 +46,49 @@
 	// --- Switch active "buffer" (in sublime terms, "group")
 	{ "keys": ["ctrl+h", "o"], "command": "focus_neighboring_group" },
 
+
+
+
 	// --- Save
 	{ "keys": ["ctrl+h", "s"], "command": "save", "args": { "async": true } },
 	{ "keys": ["ctrl+h", "ctrl+s"], "command": "save_all", "args": { "async": true } },
 	{ "keys": ["ctrl+h", "w"], "command": "prompt_save_as" },
 
+	// --- Paste
+	{ "keys": ["ctrl+v"], "command": "paste_and_indent" },
+	{ "keys": ["ctrl+shift+v"], "command": "paste" },
+
+
+	//
 	// --- Incremental search
+
 	{ "keys": ["ctrl+s"], "command": "show_panel", "args": {"panel": "incremental_find", "reverse": false } },
 	{ "keys": ["ctrl+r"], "command": "show_panel", "args": {"panel": "incremental_find", "reverse": true } },
-		// --- Patch out up/down which get hijacked for the "search history" of incremental_find.
-		//     Other moves don't get hijacked, so we patch them accordingly in python
-		{ "keys": ["up"], "command": "als_hide_panel_then_run",
-			"args": {"command_name": "move", "by": "lines", "forward": false},
-			"context": [{"key": "panel", "operand": "incremental_find"}, {"key": "panel_has_focus"}]
-		},
-		{ "keys": ["down"], "command": "als_hide_panel_then_run",
-			"args": {"command_name": "move", "by": "lines", "forward": true},
-			"context": [{"key": "panel", "operand": "incremental_find"}, {"key": "panel_has_focus"}]
-		},
 
-		{ "keys": ["left"], "command": "als_hide_panel_then_run",
-			"args": {"command_name": "move", "by": "characters", "forward": false},
-			"context": [{"key": "panel", "operand": "incremental_find"}, {"key": "panel_has_focus"}]
-		},
-		{ "keys": ["right"], "command": "als_hide_panel_then_run",
-			"args": {"command_name": "move", "by": "characters", "forward": true},
-			"context": [{"key": "panel", "operand": "incremental_find"}, {"key": "panel_has_focus"}]
-		},
+	// --- Auto-close on navigation
+
+	// { "keys": ["up"], "command": "als_hide_panel_then_run",
+	// 	"args": {"command_name": "move", "by": "lines", "forward": false},
+	// 	"context": [{"key": "panel", "operand": "incremental_find"}, {"key": "panel_has_focus"}]
+	// },
+	// { "keys": ["down"], "command": "als_hide_panel_then_run",
+	// 	"args": {"command_name": "move", "by": "lines", "forward": true},
+	// 	"context": [{"key": "panel", "operand": "incremental_find"}, {"key": "panel_has_focus"}]
+	// },
+
+	// { "keys": ["left"], "command": "als_hide_panel_then_run",
+	// 	"args": {"command_name": "move", "by": "characters", "forward": false},
+	// 	"context": [{"key": "panel", "operand": "incremental_find"}, {"key": "panel_has_focus"}]
+	// },
+	// { "keys": ["right"], "command": "als_hide_panel_then_run",
+	// 	"args": {"command_name": "move", "by": "characters", "forward": true},
+	// 	"context": [{"key": "panel", "operand": "incremental_find"}, {"key": "panel_has_focus"}]
+	// },
+
+
+
+	//
+	// ---
 
 	// --- Replace
 	// TODO - y, n, !, . to replace next, skip next, replace all, and replace next + exit replace dialogue
@@ -86,5 +107,7 @@
 	{ "keys": ["ctrl+space"], "command": "als_try_set_mark" },
 
 
-	// { "keys": ["ctrl+;"], "command": "als_test_input_handler" }
+	// --- Scratchpad
+	{ "keys": ["ctrl+;"], "command": "als_incremental_search" }
+
 ]
