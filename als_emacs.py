@@ -119,28 +119,33 @@ class AlsHidePanelThenRun(sublime_plugin.TextCommand):
 
 # --- I-Search
 
+INPUT_ELEMENT = "input:input"
 I_SEARCH_PANEL = "i-search"
 I_SEARCH_FOUND_REGION = "als_i_search_found"
 I_SEARCH_FOCUS_REGION = "als_i_search_focus"
 
-class AlsIncrementalSearch(sublime_plugin.WindowCommand):
-	targetView = None
-	targetViewEx = None
+class AlsIncrementalSearch(sublime_plugin.TextCommand):
 
-	def run(self):
-		print("runnin i-search")
-		self.targetView = self.window.active_view()
+	def run(self, edit):
+		self.viewEx = None
+		self.cursorAtStart = -1
+		self.focus = sublime.Region(-1, -1)
 
-		if self.targetView is None or self.targetView.element() is not None:
+		if self.view.element() == INPUT_ELEMENT:
+			print("repeat search")
 			return
 
-		self.targetViewEx = ensureViewEx(self.targetView)
-		selection = self.targetView.sel()
-
-		if len(selection) != 1:
+		if self.view.element() is not None:
 			return
 
-		self.window.show_input_panel(I_SEARCH_PANEL, "", self.onDone, self.onChange, self.onCancel)
+		self.viewEx = ensureViewEx(self.view)
+		selection = self.view.sel()
+
+		if len(selection) != 1: # no-op if multi-cursor active
+			return
+
+		cursorAtStart = selection[0].b # HMM - Should we capture the whole selection region at the start?
+		self.view.window().show_input_panel(I_SEARCH_PANEL, "", self.onDone, self.onChange, self.onCancel)
 
 	def onDone(self, text):
 		self.cleanup()
@@ -149,21 +154,49 @@ class AlsIncrementalSearch(sublime_plugin.WindowCommand):
 		if not text:
 			return
 
-		selection = self.targetView.sel()
+		selection = self.view.sel()
 
 		if len(selection) != 1:
 			self.forceClose()
 			return
 
 		cursor = selection[0].b
-		found = self.targetView.find(text, cursor, sublime.LITERAL)
+		found = self.view.find_all(text, flags=sublime.LITERAL)
 
-		if found.a >= 0:
+
+		if len(found) > 0:
+			idealFocus = self.cursorAtStart
+
+			matchPrev = sublime.Region(-1, -1)
+			idealMatch = None
+
+			for match in found:
+
+				if match.b < match.a:
+					raise AssertionError("find_all returned reversed region?")
+
+				if match.a <= matchPrev.a:
+					raise AssertionError("find_all returned unsorted list?")
+
+				if match.a >= idealFocus:
+					idealMatch = match
+					break
+
+			if idealMatch:
+				self.focus = idealMatch
+				self.view.add_regions(
+					I_SEARCH_FOCUS_REGION,
+					[self.focus],
+					scope="region.greenish")
+			else:
+				pass # TODO - wrap-around search? idk
+
 			# TODO - Make color match theme instead of hard-coding
-			self.targetView.add_regions(
+			self.view.add_regions(
 				I_SEARCH_FOUND_REGION,
-				[found],
-				scope="region.greenish")
+				found,
+				scope="region.greenish",
+				flags=sublime.DRAW_NO_FILL)
 
 	def onCancel(self):
 		self.cleanup()
@@ -176,8 +209,8 @@ class AlsIncrementalSearch(sublime_plugin.WindowCommand):
 		self.cleanup()
 
 	def cleanup(self):
-		self.targetView.erase_regions(I_SEARCH_FOUND_REGION)
-		self.targetView.erase_regions(I_SEARCH_FOCUS_REGION)
+		self.view.erase_regions(I_SEARCH_FOUND_REGION)
+		self.view.erase_regions(I_SEARCH_FOCUS_REGION)
 
 
 
