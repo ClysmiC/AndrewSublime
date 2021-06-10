@@ -1,5 +1,7 @@
 # TODO
+# - Indent instead of inserting tab when I press tab/shift tab with a single line selected
 # - If initial text matches something but then the text gets changed, start back from the beginning of the search
+# - Make sure searches are highlighted in scroll bar (and maybe minimap?)
 # - If active mark and then search forward a bunch of times and then backwards a bunch of times, shrink the selection back on the backwards searches
 # - Ensure selecion is robust against wraparound search and wraparound reverse search
 # - Better streamlined find/replace with yn.! options (see command mode? https://docs.sublimetext.io/reference/key_bindings.html#the-any-character-binding)
@@ -16,35 +18,51 @@ import sublime_plugin
 from enum import Enum
 import traceback #debug
 
-# --- Extra state stored per view to enable behavior similar to emacs 'trasient-mark-mode'
-
-g_viewExDict = {}
+# --- Extra state stored per view and per window
 
 class ViewEx():
+	dictionary = {}
+
 	def __init__(self, view):
 		self.markSel = MarkSel(view)
-		self.iSearch = ISearch(view, self.markSel)
+		# self.iSearch = ISearch(view, self.markSel)
 
 	@staticmethod
 	def get(view):
-		result = g_viewExDict.get(view.id())
+		result = ViewEx.dictionary.get(view.id())
 
 		if result is None:
 			result = ViewEx(view)
-			g_viewExDict[view.id()] = result
+			ViewEx.dictionary[view.id()] = result
 
 		return result
 
 	@staticmethod
-	def getActiveView(window):
-		activeView = window.active_view()
-		if activeView is None:		raise AssertionError("No active view?")
-		if activeView.element():	raise AssertionError("Active view has a truthy element(..) value?")
-		return activeView
+	def onClose(view):
+		ViewEx.dictionary.pop(view.id())
 
-	# TODO - Delete from dict if view goes away?
+class WindowEx():
+	dictionary = {}
 
-# --- Mark/selection
+	def __init__(self, window):
+		self.iSearch = ISearch(window)
+
+	@staticmethod
+	def get(window):
+		result = WindowEx.dictionary.get(window.id())
+
+		if result is None:
+			result = WindowEx(window)
+			WindowEx.dictionary[window.id()] = result
+
+		return result
+
+	@staticmethod
+	def onClose(window):
+		WindowEx.dictionary.pop(window.id())
+
+
+# --- Mark/selection (similar to 'transient-mark-mode' in emacs)
 
 class SelectionAction(Enum):
 	CLEAR 					= 0
@@ -52,12 +70,10 @@ class SelectionAction(Enum):
 
 class MarkAction(Enum):
 	CLEAR					= 0
-	KEEP					= 1
+	KEEP					= 1 # NOTE - SETs if already active, CLEARs if otherwise
 	SET						= 2
 
 class MarkSel():
-
-	FALLBACK_REGION = sublime.Region(0, 0)
 
 	@staticmethod
 	def get(view):
@@ -70,17 +86,10 @@ class MarkSel():
 
 	def clearMark(self):
 		self.mark = -1
-		self.cntModificationToIgnore = 0 	# State for re-jiggering selection during various commands
-		self.cntWantRefreshMark = 0			# ...
+		self.wantIgnoreModification = 0 	# State for re-jiggering selection during various commands
+		self.wantKeepMark = 0				# ...
 
 	# --- Static utils
-
-	@staticmethod
-	def ensureRegionValid(region):
-		if region is None or region.a < 0 or region.b < 0: # HMM - check upper bounds? That'd require view info...
-			return sublime.Region(0, 0)
-
-		return region
 
 	@staticmethod
 	def extendRegion(regionStart, regionExtendTo):
@@ -103,17 +112,22 @@ class MarkSel():
 	# --- Operations
 
 	def primaryCursor(self):
-		return self.selection[0].b if len(self.selection) > 0 else 0
+		return self.primaryRegion().b
 
 	def primaryRegion(self):
-		return MarkSel.ensureRegionValid(self.selection[0] if len(self.selection) > 0 else FALLBACK_REGION) # @Slow - Redundant checks
+		if len(self.selection) > 0 and self.selection[0].a >= 0 and self.selection[0].b >= 0:
+			return self.selection[0]
+
+		return sublime.Region(0, 0)		# fallback
 
 	def isMarkActive(self):
 		return self.mark >= 0 and len(self.selection) == 1
 
 	# NOTE - clear with clearMark(..)
 	def placeMark(self, selectionAction):
-		self.mark = self.primaryCursor()
+		cursor = self.primaryCursor()
+		if self.mark != cursor:
+			self.mark = self.primaryCursor()
 
 		if selectionAction == SelectionAction.CLEAR:
 			self.selection.clear()
@@ -122,10 +136,10 @@ class MarkSel():
 		elif selectionAction == SelectionAction.KEEP:
 			pass
 
-	# NOTE - clear with clearAll(..) or placeMark(SelectionAction.CLEAR)
-	def select(self, region, markAction, asExtension=False, wantShow=True):
+	# NOTE - clear with clearAll(..) or placeMark(selectionAction=SelectionAction.CLEAR)
+	def select(self, region, markAction, extend=False, wantShow=True):
 
-		if asExtension:
+		if extend:
 			extendedRegion = MarkSel.extendRegion(self.primaryRegion(), region)
 			self.selection.clear()
 			self.selection.add(extendedRegion)
@@ -146,8 +160,8 @@ class MarkSel():
 
 		return region
 
-	def selectPrimaryRegion(self, markAction, asExtension=False, wantShow=True):
-		return self.select(self.primaryRegion(), markAction, asExtension=asExtension, wantShow=wantShow)
+	def selectPrimaryRegion(self, markAction, extend=False, wantShow=True):
+		return self.select(self.primaryRegion(), markAction, extend=extend, wantShow=wantShow)
 
 	def clearAll(self):
 		cursor = self.primaryCursor()
@@ -197,134 +211,161 @@ class AlsHidePanelThenRun(sublime_plugin.TextCommand):
 		window = self.view.window()
 		window.run_command("hide_panel")
 
-		view = ViewEx.getActiveView(window)
+		view = window.active_view()
 		viewEx = ViewEx.get(view)
 		viewEx.markSel.clearAll()
 
-		command_name = kwargs.pop('command_name', None)
+		command_name = kwargs.pop('command_name')
 		view.run_command(command_name, kwargs)
 
 # --- I-Search
 
 # TODO
+# Can I stop passing windows around in handlers? I actually don't know -- idk if plugins are loaded once, loaded per window, or maybe even per view?
 # ‘Overwrapped’ search, which means that you are revisiting matches that you have already seen (i.e., starting from cursorOnOpen)
 
+
 class ISearch():
+
+	# --- Constants
+
 	INPUT_ELEMENT = "input:input"
 	PANEL_NAME = "i-search"
 	FOUND_REGION_NAME = "als_i_search_found"
 	FOCUS_REGION_NAME = "als_i_search_focus"
-	NO_FOCUS = sublime.Region(-1, -1)
+	DEBUG_LOG = True
+
+	class Focus:
+
+		class State(Enum):
+			NIL		= 0		# No focus - search empty / not founcd
+			PASSIVE	= 1		# ISearch eagerly focused on the user typed string, but they haven't otherwise interacted
+			ACTIVE	= 2		# User interacted by searching for the next or prev match
+
+		def __init__(self, state, region):
+			self.state = state
+			self.region = region
+
+	NO_FOCUS = ISearch.Focus(ISearch.Focus.State.NIL, None)
 
 	@staticmethod
-	def get(view):
-		return ViewEx.get(view).iSearch
+	def get(window):
+		return WindowEx.get(window).iSearch
 
-	def __init__(self, view, markSel):
-		# --- Persistent state
-		LOG = False
-		if LOG:	print("Initializing view " + str(view))
+	def __init__(self, window):
+		self.window = window
+		self.lastSavedSearch = ""
+		self.cleanup(isAfterClose=False)
 
-		self.view = view
-		self.markSel = markSel
-		self.lastCommittedText = ""
-
-		# --- Temp state
-		self.cleanupTempState()
-
-	def cleanupTempState(self):
-		self.cursorOnOpen = -1
-		self.focus = None
-		self.text = ""
+	def cleanup(self, isAfterClose):
 		self.inputView = None
-		self.autoPreferForward = True	# Smuggles in the correct forward value for the initial onChange(..) after show_input_panel(..)
-		self.cleanupDrawings()
+		self.cursorOnOpen = -1
+		self.focus = ISearch.NO_FOCUS
+		self.forward = True
 
-	def ensureOpen(self, forward):
-		self.autoPreferForward = forward
+		if isAfterClose:
+			activeView = self.window.active_view()
+			markSel = MarkSel.get(activeView)
+			self.cleanupDrawings(activeView)
+			if not markSel.isMarkActive():
+				markSel.clearAll()
 
-		# HMM - Worried about this falling out of sync by missing an edge where we should cleanup(..)
-		#  ... but more woried about uncertainty of calling show_input_panel while it is already visible
-		if self.inputView is None:
-			textInitial = self.lastCommittedText if self.lastCommittedText else ""
-			self.inputView = self.view.window().show_input_panel(self.PANEL_NAME, textInitial, self.onDone, self.onChange, self.onCancel)
-			self.inputView.run_command("select_all")
+	# --- Visibility
 
-	def forceClose(self):
-		self.window.run_command("hide_panel")
-		self.cleanupTempState()
+	def isShowing(self):
+		return self.inputView and self.inputView.window()
 
-	def cleanupDrawings(self):
-		self.view.erase_regions(self.FOUND_REGION_NAME)
-		self.view.erase_regions(self.FOCUS_REGION_NAME)
+	def open(self, forward=True):
+		markSel = MarkSel.get(self.window.active_view())
+		self.cursorOnOpen = markSel.primaryCursor()
+		self.forward = forward
+		self.focus = ISearch.NO_FOCUS
+
+		if not self.isShowing():
+			self.inputView = self.window.show_input_panel(ISearch.PANEL_NAME, self.lastSavedSearch, self.onDone, self.onChange, self.onCancel)
+
+		if not self.inputView:		raise AssertionError("i-search has no input view?")
+
+		self.window.focus_view(self.inputView)
+		self.inputView.run_command("select_all")
+
+	def close(self):
+		if self.isShowingInputView():
+			self.window.run_command("hide_panel")
+			self.cleanup(isAfterClose=True)
+
+	def cleanupDrawings(self, view):
+		view.erase_regions(ISearch.FOUND_REGION_NAME)
+		view.erase_regions(ISearch.FOCUS_REGION_NAME)
 
 	# --- Hooks
 
-	@staticmethod
-	def on_text_command(viewInput, command_name, args):
-		# NOTE - Hooked into by EventListener
-		if viewInput.element() != ISearch.INPUT_ELEMENT:	raise AssertionError(f"Expected viewInput to be {ISearch.INPUT_ELEMENT}")
+	def onTextCommand(self, command_name, args):
 
 		if command_name == "move" or command_name == "move_to":
+			# TODO - use chain instead of als_hide_panel_then_run?
 			args["command_name"] = command_name
-			viewInput.run_command("als_hide_panel_then_run", args)
+			self.inputView.run_command("als_hide_panel_then_run", args)
 			return ("", None)
 
 		return None
 
 	def onDone(self, text):
-		self.lastCommittedText = text
-		self.cleanupTempState()
-		if not self.markSel.isMarkActive():
-			self.markSel.clearAll()
+		self.text = text # HMM - probably unnecessary?
+		self.lastSavedSearch = text
+		self.cleanup(isAfterClose=True)
 
 	def onChange(self, text):
-		if len(self.markSel.selection) != 1:
-			self.forceClose()
-			return
-
 		self.text = text
-		self.search(self.autoPreferForward)
+		self.search(isRepeatedSearch=False)
 
 	def onCancel(self):
-		self.cleanupTempState()
-		if not self.markSel.isMarkActive():
-			self.markSel.clearAll()
+		self.cleanup(isAfterClose=True)
 
 	# --- Operations
 
-	def search(self, forward, nudge=False):
-		LOG = False
+	def search(self, isRepeatedSearch):
 
-		self.autoPreferForward = forward
+		markSel = MarkSel.get(self.window.active_view())
+		keepMark = markSel.isMarkActive()
+		markAction = MarkAction.KEEP if keepMark else MarkAction.CLEAR # @Redundant with keepMark
 
-		if not self.text:
-			return
+		# Clear multi-cursor
+		primaryRegion = markSel.selectPrimaryRegion(markAction)
 
-		isMarkActive = self.markSel.isMarkActive()
-		markAction = MarkAction.SET if isMarkActive else MarkAction.CLEAR
+		# Decide where to start search
+		searchFrom = None
+		if self.forward:
+			if self.focus.region:
+				searchFrom = self.focus.region.end() - len(self.text)
+			else:
+				searchFrom = primaryRegion.end() - len(self.text)
 
-		primaryRegion = self.markSel.selectPrimaryRegion(markAction)
-
-		startFrom = self.focus
-		if startFrom is None:
-			startFrom = primaryRegion
-
-		idealFocusBound = None
-		if forward:
-			idealFocusBound = startFrom.begin() + (1 if nudge else 0)
+			if isRepeatedSearch:
+				searchFrom += 1
 		else:
-			idealFocusBound = startFrom.end() - (1 if nudge else 0)
+			if self.focus.region:
+				searchFrom = self.focus.region.begin() + len(self.text)
+			else:
+				searchFrom = primaryRegion.begin() + len(self.text)
+
+			if isRepeatedSearch:
+				searchFrom -= 1
 
 		flags = sublime.LITERAL
 		hasNoUppercase = all(not c.isupper() for c in self.text)
 		if hasNoUppercase:
 			flags |= sublime.IGNORECASE
 
-		found = self.view.find_all(self.text, flags=flags)
+		# Find all matches
+		# TODO - Cache matches if re-searching the same term and the buffer hasn't changed?
+		#        Would be useful when continually re-searching to cycle through found selections
+
+		activeView = self.window.active_view()
+		found = activeView.find_all(self.text, flags=flags)
 
 		if len(found) > 0:
-			# Compute ideal match
+			# Choose best match
 
 			debug_matchPrev = sublime.Region(-1, -1)
 			bestMatch = None
@@ -337,12 +378,12 @@ class ISearch():
 				if match.a <= debug_matchPrev.a:
 					raise AssertionError("find_all returned unsorted list?")
 
-				if forward and match.a >= idealFocusBound:
+				if self.forward and match.a >= searchFrom:
 					# NOTE - This one breaks the loop, since we can only get further away in an increasing list
 					bestMatch = match
 					break
 
-				elif not forward and match.b <= idealFocusBound:
+				elif not self.forward and match.b <= searchFrom:
 					# NOTE - This one doesn't, since we can only get closer and continue updating our ideal
 					bestMatch = match
 
@@ -350,45 +391,47 @@ class ISearch():
 
 			wrappedAround = False
 			if not bestMatch:
-				if forward: bestMatch = found[0]	# wrap around to top match, HMM - require extra keypress?
-				else:		bestMatch = found[-1]	# ... to bot match ...
+				if self.forward: 	bestMatch = found[0]	# wrap around to top match, HMM - require extra keypress?
+				else:				bestMatch = found[-1]	# ... to bot match ...
 				wrappedAround = True
 
 			# --- Lock in the match
 
-			self.focus = bestMatch
+			self.focus = ISearch.Focus(ISearch.Focus.State.ACTIVE if isRepeatedSearch else ISearch.Focus.State.PASSIVE,
+								 	   bestMatch)
 
-			# HMM - asExtension check is kinda roundabout. Basically I want to extend any time we have a mark down
-			self.markSel.select(self.focus, markAction, asExtension=isMarkActive)
+			markSel.select(self.focus.region, markAction, extend=keepMark)
 
 			# TODO - Make color match theme instead of hard-coding
 
-			# --- Found
-			self.view.add_regions(
-				self.FOUND_REGION_NAME,
+			# --- Draw around the matches!
+
+			activeView.add_regions(
+				ISearch.FOUND_REGION_NAME,
 				found,
 				scope="region.orangish",
 				flags=sublime.DRAW_NO_FILL)
 
 			# --- Focus
-			self.view.add_regions(
-				self.FOCUS_REGION_NAME,
-				[self.focus],
+			activeView.add_regions(
+				ISearch.FOCUS_REGION_NAME,
+				[self.focus.region],
 				scope="invalid")
 
-			if LOG:
+			if ISearch.DEBUG_LOG:
 				if wrappedAround:
-					if forward:	print(f"wraparound match found at ({match.a}, {match.b}) - ideal start: {idealFocusBound})")
-					else:		print(f"wraparound match (r) found at ({match.a}, {match.b}) - ideal end: {idealFocusBound})")
+					if self.forward:	print(f"wraparound match found at ({match.a}, {match.b}) - ideal start: {searchFrom})")
+					else:				print(f"wraparound match (r) found at ({match.a}, {match.b}) - ideal end: {searchFrom})")
 				else:
-					if forward:	print(f"match found at ({match.a}, {match.b}) - ideal start: {idealFocusBound})")
-					else:		print(f"match (r) found at ({match.a}, {match.b}) - ideal end: {idealFocusBound})")
+					if self.forward:	print(f"match found at ({match.a}, {match.b}) - ideal start: {searchFrom})")
+					else:				print(f"match (r) found at ({match.a}, {match.b}) - ideal end: {searchFrom})")
 		else:
 			# TODO - play beep here? change highlight line color?
-			self.cleanupDrawings()
-			if LOG:
-				if forward: print("No match found")
-				else: 		print("No match (r) found")
+			self.focus = ISearch.Focus(ISearch.Focus.State.NIL, None)
+			self.cleanupDrawings(activeView)
+			if ISearch.DEBUG_LOG:
+				if self.forward:	print("No match found")
+				else: 				print("No match (r) found")
 
 
 
@@ -396,23 +439,20 @@ class AlsIncrementalSearch(sublime_plugin.TextCommand):
 
 	def run(self, edit, forward=True):
 
-		viewTarget = ViewEx.getActiveView(self.view.window())
+		iSearch = ISearch.get(self.view.window())
 
 		# --- Detect re-search
 		if self.view.element() == ISearch.INPUT_ELEMENT:
-			viewExTarget = ViewEx.get(viewTarget)
-			print("re-searching")
-			viewExTarget.iSearch.search(forward, nudge=True)
+			iSearch.forward = forward
+			iSearch.search(isRepeatedSearch=True)
 			return
 
 		# --- Bail if inside some other special view
 		if self.view.element():
 			return
 
-		# --- We're just inside a normal view. Open up the search bar go
-		viewEx = ViewEx.get(self.view)
-		viewEx.markSel.selectPrimaryRegion(MarkAction.SET if viewEx.markSel.isMarkActive() else MarkAction.CLEAR)
-		viewEx.iSearch.ensureOpen(forward=forward)
+		# --- We're just inside a normal view
+		iSearch.open(forward)
 
 
 
@@ -426,7 +466,8 @@ class AlsEventListener(sublime_plugin.EventListener):
 		# NOTE - We only seem to pick up on these in the EventListener, not the ViewEventListener... for whatever reason.
 
 		if view.element() == ISearch.INPUT_ELEMENT:
-			return ISearch.on_text_command(view, command_name, args)
+			iSearch = ISearch.get(view.window())
+			return iSearch.onTextCommand(command_name, args)
 
 		return None
 
@@ -435,6 +476,14 @@ class AlsEventListener(sublime_plugin.EventListener):
 		if LOG: print("[event listener] window_command: " + command_name)
 
 		return None
+
+	def on_activated(self, view):
+		LOG = False
+		if LOG: print("view activated: " + str(view.element()))
+
+	def on_deactivated(self, view):
+		LOG = False
+		if LOG: print("view deactivated: " + str(view.element()))
 
 class AlsViewEventListener(sublime_plugin.ViewEventListener):
 
@@ -446,12 +495,12 @@ class AlsViewEventListener(sublime_plugin.ViewEventListener):
 		# IMPORTANT - Altering the return value feeds the altered command back into this function.
 		#  Only return a tuple if you have actually altered things, otherwise there is inifnite recursion!
 
-		viewEx = ViewEx.get(self.view)
+		markSel = MarkSel.get(self.view)
 
 		# Extend moves
 
 		if command_name == "move" or command_name == "move_to":
-			if viewEx.markSel.isMarkActive() and not args.get("extend", False):
+			if markSel.isMarkActive() and not args.get("extend", False):
 				args["extend"] = True
 				return (command_name, args)
 
@@ -462,8 +511,8 @@ class AlsViewEventListener(sublime_plugin.ViewEventListener):
 			 command_name == "swap_line_down" or \
 			 command_name == "indent" or \
 			 command_name == "unindent":
-			viewEx.markSel.cntModificationToIgnore += 1
-			viewEx.markSel.cntWantRefreshMark += 1
+			markSel.wantIgnoreModification += 1
+			markSel.wantRefreshMark += 1
 
 		# Execute command unmodified
 
@@ -477,10 +526,10 @@ class AlsViewEventListener(sublime_plugin.ViewEventListener):
 		# NOTE - Commands that don't modify the buffer are handled here.
 		#  All buffer-modifying commands are handled in on_modified
 
-		viewEx = ViewEx.get(self.view)
+		markSel = MarkSel.get(self.view)
 
 		if command_name == "copy":
-			viewEx.markSel.clearAll()
+			markSel.clearAll()
 
 	def on_modified(self):
 		LOG = False
@@ -490,13 +539,13 @@ class AlsViewEventListener(sublime_plugin.ViewEventListener):
 		# NOTE - Anything that affects contents of buffer will hook into
 		#  this function
 
-		viewEx = ViewEx.get(self.view)
+		markSel = MarkSel.get(self.view)
 
-		if viewEx.markSel.cntModificationToIgnore > 0:
-			viewEx.markSel.cntModificationToIgnore -= 1
+		if markSel.wantIgnoreModification > 0:
+			markSel.wantIgnoreModification -= 1
 
-		elif viewEx.markSel.isMarkActive():
-			viewEx.markSel.clearAll()
+		elif markSel.isMarkActive():
+			markSel.clearAll()
 
 	def on_selection_modified(self):
 		LOG = False
@@ -508,16 +557,16 @@ class AlsViewEventListener(sublime_plugin.ViewEventListener):
 		markSel = MarkSel.get(self.view)
 		if markSel.isMarkActive():
 
-			if markSel.cntWantRefreshMark > 0:
+			if markSel.wantKeepMark > 0:
 				# Refresh with new selection that sublime computed
 
 				markSel.placeMark(SelectionAction.KEEP)
-				markSel.cntWantRefreshMark -= 1
+				markSel.wantKeepMark -= 1
 
 			else:
 				# Expand selection
 
-				markSel.selectPrimaryRegion(MarkAction.SET, asExtension=True)
+				markSel.selectPrimaryRegion(MarkAction.SET, extend=True)
 
 
 
