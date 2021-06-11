@@ -96,5 +96,23 @@
             "scope": "storage.type | entity.name",
             "foreground": "var(type)",
         },
+
+        {
+            "name": "Language Variable (like 'this' or 'self')",
+            "scope": "variable.language",
+            "foreground": "var(keyword_white)",
+        },
+
+        {
+            "name": "Word operators",
+            "scope": "keyword.operator.logical.python",
+            "foreground": "var(keyword_white)",
+        },
+
+        {
+            "name": "Built in function",
+            "scope": "support.function.builtin",
+            "foreground": "var(keyword_white)",
+        },
 	]
 }

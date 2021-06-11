@@ -24,7 +24,7 @@
 	"font_options": ["no_italic"],
 
 	// --- Color scheme
-	"color_scheme": "Packages/Color Scheme - Default/Monokai.sublime-color-scheme",
+	"color_scheme": "Packages/User/Andrew Olive.sublime-color-scheme",
 	"theme": "auto",
 
 	"inactive_sheet_dimming": false,
@@ -49,6 +49,7 @@
 	"always_show_minimap_viewport": true,
 	"fold_buttons": false,
 	"match_selection": false, 			// HMM - turn this back on, but just use underlines?
+	"file_tab_style": "square",
 
 	"word_separators": "./\\()\"'-:,.;<>~!@#$%^&*|+=[]{}`~?_", // NOTE - added _ which corresponds with emacs behavior
 }

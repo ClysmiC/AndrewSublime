@@ -82,6 +82,7 @@ class MarkSel():
 	def __init__(self, view):
 		self.view = view
 		self.selection = view.sel()
+		self.hiddenSelRegion = None			# Supports ISearch focus color not being obscured by a selected region
 		self.clearMark()
 
 	def clearMark(self):
@@ -111,14 +112,37 @@ class MarkSel():
 
 	# --- Operations
 
+	def isSelectionHidden(self):
+		return len(self.selection) == 0
+
+	def hideSelection(self):
+		self.hiddenSelRegion = self.primaryRegion()
+		if len(self.selection) > 0:
+			self.selection.clear()
+
+	def showSelection(self):
+		if len(self.selection) == 0:
+			self.selection.add(self.hiddenSelRegion if self.hiddenSelRegion is not None else self.primaryRegion())
+
+		self.hiddenSelRegion = None
+
 	def primaryCursor(self):
 		return self.primaryRegion().b
 
 	def primaryRegion(self):
 		if len(self.selection) > 0 and self.selection[0].a >= 0 and self.selection[0].b >= 0:
 			return self.selection[0]
+		elif self.isSelectionHidden() and self.hiddenSelRegion is not None:
+			return self.hiddenSelRegion
 
 		return sublime.Region(0, 0)		# fallback
+
+	def isExactlyPrimaryRegion(self, region, ignoreReversedness=False):
+		primaryRegion = self.primaryRegion()
+		if ignoreReversedness:
+			return region.begin() == primaryRegion.begin() and region.end() == primaryRegion.end()
+		else:
+			return region.a == primaryRegion.a and region.b == primaryRegion.b
 
 	def isMarkActive(self):
 		return self.mark >= 0 and len(self.selection) == 1
@@ -155,7 +179,7 @@ class MarkSel():
 			self.clearMark()
 
 		elif 	(markAction == MarkAction.SET) or \
-				(markAction == MarkAction.KEEP and self.markSel.isMarkActive()):
+				(markAction == MarkAction.KEEP and self.isMarkActive()):
 			self.mark = region.a
 
 		return region
@@ -202,26 +226,39 @@ class AlsInflateSelectionToFillLines(sublime_plugin.TextCommand):
 		markSel = MarkSel.get(self.view)
 
 		oldRegion = markSel.primaryRegion()
-		newRegion = MarkSel.extendRegion(oldRegion, self.view.line(oldRegion))
+		# newRegion = MarkSel.extendRegion(oldRegion, self.view.line(oldRegion))
 		markSel.select(newRegion, MarkAction.SET)
 
-class AlsHidePanelThenRun(sublime_plugin.TextCommand):
+class AlsHidePanelThenRun(sublime_plugin.WindowCommand):
 	"""Auto-close a panel and jump right back into the normal view with a command"""
-	def run(self, edit, **kwargs):
-		window = self.view.window()
-		window.run_command("hide_panel")
+	def run(self, **kwargs):
+		self.window.run_command("hide_panel")
 
-		view = window.active_view()
-		viewEx = ViewEx.get(view)
-		viewEx.markSel.clearAll()
+		view = self.window.active_view()
+		print("view after hide_panel: " + str(view.element()))
+
+		# NOTE - As of Sublime Text 4.0, calling run_command won't give your hooks a chance to intercept/modify it,
+		#  which breaks the transient mark. So we manually call the hook before dispatching :)
 
 		command_name = kwargs.pop('command_name')
-		view.run_command(command_name, kwargs)
+		modified = AlsEventListener.instance.on_text_command(view, command_name, kwargs)	# HMM - This relies on event listener on_init being called before this command ever runs...
+
+		if modified is None:
+			print(f"running {command_name} unmodified")
+			view.run_command(command_name, kwargs)
+		else:
+			prevCommand = command_name
+			while modified is not None:
+				print(f"modified {prevCommand} into {modified[0]}")
+				prevCommand = modified[0]
+				modified = AlsEventListener.instance.on_text_command(view, modified[0], modified[1])
+
+			print(f"running {command_name} (modified)")
+			view.run_command(modified[0], modified[1])
 
 # --- I-Search
 
 # TODO
-# Can I stop passing windows around in handlers? I actually don't know -- idk if plugins are loaded once, loaded per window, or maybe even per view?
 # ‘Overwrapped’ search, which means that you are revisiting matches that you have already seen (i.e., starting from cursorOnOpen)
 
 
@@ -233,7 +270,7 @@ class ISearch():
 	PANEL_NAME = "i-search"
 	FOUND_REGION_NAME = "als_i_search_found"
 	FOCUS_REGION_NAME = "als_i_search_focus"
-	DEBUG_LOG = True
+	DEBUG_LOG = False
 
 	class Focus:
 
@@ -246,7 +283,7 @@ class ISearch():
 			self.state = state
 			self.region = region
 
-	NO_FOCUS = ISearch.Focus(ISearch.Focus.State.NIL, None)
+	NO_FOCUS = Focus(Focus.State.NIL, None)
 
 	@staticmethod
 	def get(window):
@@ -266,6 +303,7 @@ class ISearch():
 		if isAfterClose:
 			activeView = self.window.active_view()
 			markSel = MarkSel.get(activeView)
+			markSel.showSelection()
 			self.cleanupDrawings(activeView)
 			if not markSel.isMarkActive():
 				markSel.clearAll()
@@ -301,9 +339,9 @@ class ISearch():
 	# --- Hooks
 
 	def onTextCommand(self, command_name, args):
+		# HMM - I'd rather use (poorly documented) "chain" command here, but that doesn't let me hook into the chained commands :(
 
 		if command_name == "move" or command_name == "move_to":
-			# TODO - use chain instead of als_hide_panel_then_run?
 			args["command_name"] = command_name
 			self.inputView.run_command("als_hide_panel_then_run", args)
 			return ("", None)
@@ -311,6 +349,7 @@ class ISearch():
 		return None
 
 	def onDone(self, text):
+		print("INPUT DONE")
 		self.text = text # HMM - probably unnecessary?
 		self.lastSavedSearch = text
 		self.cleanup(isAfterClose=True)
@@ -320,6 +359,7 @@ class ISearch():
 		self.search(isRepeatedSearch=False)
 
 	def onCancel(self):
+		print("INPUT CANCEL")
 		self.cleanup(isAfterClose=True)
 
 	# --- Operations
@@ -398,25 +438,31 @@ class ISearch():
 			# --- Lock in the match
 
 			self.focus = ISearch.Focus(ISearch.Focus.State.ACTIVE if isRepeatedSearch else ISearch.Focus.State.PASSIVE,
-								 	   bestMatch)
+										bestMatch)
+
+			# NOTE - This is a compromise. Hiding the selection gives us better/visible colors, but showing is beteter
+			#	if they have a big selection.
+			# HMM - Hiding it removes highlight_line :(
 
 			markSel.select(self.focus.region, markAction, extend=keepMark)
-
-			# TODO - Make color match theme instead of hard-coding
+			if markSel.isExactlyPrimaryRegion(self.focus.region, ignoreReversedness=True):
+				markSel.hideSelection()
+			else:
+				markSel.showSelection()
 
 			# --- Draw around the matches!
 
 			activeView.add_regions(
 				ISearch.FOUND_REGION_NAME,
 				found,
-				scope="region.orangish",
+				scope="als_highlight",
 				flags=sublime.DRAW_NO_FILL)
 
-			# --- Focus
 			activeView.add_regions(
 				ISearch.FOCUS_REGION_NAME,
 				[self.focus.region],
-				scope="invalid")
+				scope="als_find_highlight")	# NOTE - Doesn't actually push the scope, just sources color from it.
+											#	No way that I know of to set the foreground color. "scope" :(
 
 			if ISearch.DEBUG_LOG:
 				if wrappedAround:
@@ -435,7 +481,8 @@ class ISearch():
 
 
 
-class AlsIncrementalSearch(sublime_plugin.TextCommand):
+class AlsIncrementalSearch(sublime_plugin.TextCommand):		# NOTE - TextCommand instead of WindowCommand
+															#	TextCommand gives us access to the view, which lets us detect re-search
 
 	def run(self, edit, forward=True):
 
@@ -455,51 +502,36 @@ class AlsIncrementalSearch(sublime_plugin.TextCommand):
 		iSearch.open(forward)
 
 
-
 # --- Listeners/Hooks
 
 class AlsEventListener(sublime_plugin.EventListener):
+	DEBUG_LOG = True
+
+	instance = None
+
+	def on_init(self, viewsCurrentlyLoaded):
+		AlsEventListener.instance = self
+
 	def on_text_command(self, view, command_name, args):
-		LOG = False
-		if LOG:	print("[event listener] text_command: " + command_name)
-
-		# NOTE - We only seem to pick up on these in the EventListener, not the ViewEventListener... for whatever reason.
-
-		if view.element() == ISearch.INPUT_ELEMENT:
-			iSearch = ISearch.get(view.window())
-			return iSearch.onTextCommand(command_name, args)
-
-		return None
-
-	def on_window_command(self, window, command_name, args):
-		LOG = False
-		if LOG: print("[event listener] window_command: " + command_name)
-
-		return None
-
-	def on_activated(self, view):
-		LOG = False
-		if LOG: print("view activated: " + str(view.element()))
-
-	def on_deactivated(self, view):
-		LOG = False
-		if LOG: print("view deactivated: " + str(view.element()))
-
-class AlsViewEventListener(sublime_plugin.ViewEventListener):
-
-	def on_text_command(self, command_name, args):
-		LOG = False
-		if LOG:	print("[view event listener] text_command: " + command_name)
-		if self.view.element():	raise AssertionError("Unexpected input view in ViewEventListener...")
 
 		# IMPORTANT - Altering the return value feeds the altered command back into this function.
 		#  Only return a tuple if you have actually altered things, otherwise there is inifnite recursion!
 
-		markSel = MarkSel.get(self.view)
+		print(f"MODIFYIIIIIIIIING {command_name}")
+		if self.DEBUG_LOG:	print("[event listener] text_command: " + command_name)
+
+		# Maybe dispatch to input view
+
+		if view.element() == ISearch.INPUT_ELEMENT:
+			print("DISPATCHING TO INPUT VIEW")
+			iSearch = ISearch.get(view.window())
+			return iSearch.onTextCommand(command_name, args)
 
 		# Extend moves
 
+		markSel = MarkSel.get(view)
 		if command_name == "move" or command_name == "move_to":
+
 			if markSel.isMarkActive() and not args.get("extend", False):
 				args["extend"] = True
 				return (command_name, args)
@@ -512,96 +544,64 @@ class AlsViewEventListener(sublime_plugin.ViewEventListener):
 			 command_name == "indent" or \
 			 command_name == "unindent":
 			markSel.wantIgnoreModification += 1
-			markSel.wantRefreshMark += 1
+			markSel.wantKeepMark += 1
 
 		# Execute command unmodified
 
 		return None
 
-	def on_post_text_command(self, command_name, args):
-		LOG = False
-		if LOG:	print("[view event listener] on_post_text_command")
-		if self.view.element():	raise AssertionError("Unexpected input view in ViewEventListener...")
-
+	def on_post_text_command(self, view, command_name, args):
 		# NOTE - Commands that don't modify the buffer are handled here.
 		#  All buffer-modifying commands are handled in on_modified
 
-		markSel = MarkSel.get(self.view)
+		if self.DEBUG_LOG:	print("[event listener] on_post_text_command")
 
 		if command_name == "copy":
+			markSel = MarkSel.get(view)
 			markSel.clearAll()
 
-	def on_modified(self):
-		LOG = False
-		if LOG:	print("[view event listener] on_modified")
-		if self.view.element():	raise AssertionError("Unexpected input view in ViewEventListener...")
-
+	def on_modified(self, view):
 		# NOTE - Anything that affects contents of buffer will hook into
 		#  this function
 
-		markSel = MarkSel.get(self.view)
+		if self.DEBUG_LOG:	print("[event listener] on_modified")
+
+		markSel = MarkSel.get(view)
+		if markSel is None:
+			return		# NOTE - filters out input view
 
 		if markSel.wantIgnoreModification > 0:
 			markSel.wantIgnoreModification -= 1
-
 		elif markSel.isMarkActive():
 			markSel.clearAll()
 
-	def on_selection_modified(self):
-		LOG = False
-		if LOG:	print("[view event listener] selection_modified")
-		if self.view.element():	raise AssertionError("Unexpected input view in ViewEventListener...")
+	def on_selection_modified(self, view):
+		pass
+		# HMM - This might be unneeded? Delete? Also delete markSel.wantKeepMark?
+		# if self.DEBUG_LOG:	print("[view event listener] selection_modified")
 
-		# NOTE - Stretch the selection to accomodate incremental search, etc.
+		# # NOTE - Stretch the selection to accomodate incremental search, etc.
 
-		markSel = MarkSel.get(self.view)
-		if markSel.isMarkActive():
+		# markSel = MarkSel.get(self.view)
+		# if markSel is None:
+		# 	return		# NOTE - filters out input view
 
-			if markSel.wantKeepMark > 0:
-				# Refresh with new selection that sublime computed
-
-				markSel.placeMark(SelectionAction.KEEP)
-				markSel.wantKeepMark -= 1
-
-			else:
-				# Expand selection
-
-				markSel.selectPrimaryRegion(MarkAction.SET, extend=True)
+		# if markSel.isMarkActive():
+		# 	if markSel.wantKeepMark > 0:
+		# 		markSel.placeMark(SelectionAction.KEEP)
+		# 		markSel.wantKeepMark -= 1
+		# 	else:
+		# 		# Expand selection
+		# 		markSel.selectPrimaryRegion(MarkAction.SET, extend=True)
 
 
+	def on_window_command(self, window, command_name, args):
+		if self.DEBUG_LOG: print("[event listener] window_command: " + command_name)
 
+		return None
 
+	def on_activated(self, view):
+		if self.DEBUG_LOG: print("view activated: " + str(view.element()))
 
-
-
-# --- Example Text Input Handler
-
-# class AlsIncrementalSearch(sublime_plugin.TextCommand):
-
-# 	def input(self, args):
-# 		return AlsIncrementalSearchInputHandler(self.view)
-
-# 	def run(self, **kwargs):
-# 		print("Running the command")
-
-
-
-# class AlsIncrementalSearchInputHandler(sublime_plugin.TextInputHandler):
-
-# 	def __init__(self, view):
-# 		self.view = view
-
-# 	def name(self):
-# 		return "als_incremental_search"
-
-# 	def placeholder(self):
-# 		return "Big Chungus"
-
-# 	def confirm(self, text):
-# 		print("Hello from " + text)
-
-# 	def preview(self, text):
-# 		print("Current text: " + text)
-# 		view.run_command()
-# 		return None
-
+	def on_deactivated(self, view):
+		if self.DEBUG_LOG: print("view deactivated: " + str(view.element()))
