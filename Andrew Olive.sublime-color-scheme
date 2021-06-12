@@ -114,5 +114,19 @@
             "scope": "support.function.builtin",
             "foreground": "var(keyword_white)",
         },
+
+        {
+            "name": "Support type", // NOTE - This applies for str(..) in python. Not sure what exactly qualifies as "support" type.,
+            "scope": "support.type",
+            "foreground": "var(keyword_white)",
+        },
+
+        // Incremental Search
+
+        {
+            "name": "ALS Find Extra Selection",
+            "scope": "als_find_extra_selection",
+            "background": "var(selection)",
+        },
 	]
 }

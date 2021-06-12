@@ -110,6 +110,23 @@ class MarkSel():
 	def reverseRegion(region):
 		return sublime.Region(region.b, region.a)
 
+	@staticmethod
+	def subtractRegion(region, regionToSubtract):
+		isBeginningInsideRegion = regionToSubtract.begin() > region.begin() and regionToSubtract.begin() < region.end()
+		isEndInsideRegion = regionToSubtract.end() > region.begin() and regionToSubtract.end() < region.end()
+
+		if isBeginningInsideRegion and isEndInsideRegion:
+			return [sublime.Region(region.begin(), regionToSubtract.begin()),
+					sublime.Region(regionToSubtract.end(), region.end())]
+		elif isBeginningInsideRegion:
+			return [sublime.Region(region.begin(), regionToSubtract.begin())]
+		elif isEndInsideRegion:
+			return [sublime.Region(regionToSubtract.end(), region.end())]
+		elif regionToSubtract.begin() <= region.begin() and regionToSubtract.end() >= region.end():
+			return []
+		else:
+			return [sublime.Region(region.begin(), region.end())]
+
 	# --- Operations
 
 	def isSelectionHidden(self):
@@ -145,7 +162,7 @@ class MarkSel():
 			return region.a == primaryRegion.a and region.b == primaryRegion.b
 
 	def isMarkActive(self):
-		return self.mark >= 0 and len(self.selection) == 1
+		return self.mark >= 0
 
 	# NOTE - clear with clearMark(..)
 	def placeMark(self, selectionAction):
@@ -232,10 +249,14 @@ class AlsInflateSelectionToFillLines(sublime_plugin.TextCommand):
 class AlsHidePanelThenRun(sublime_plugin.WindowCommand):
 	"""Auto-close a panel and jump right back into the normal view with a command"""
 	def run(self, **kwargs):
+		iSearch = ISearch.get(self.window)
+
 		self.window.run_command("hide_panel")
 
 		view = self.window.active_view()
-		print("view after hide_panel: " + str(view.element()))
+		markSel = MarkSel.get(view)
+		markSel.showSelection()		# NOTE - ISearch.onCancel doesn't get called until after our chained command runs (ugh...).
+									#  Showing the selection NEEDS to run before we issue any move commands though!
 
 		# NOTE - As of Sublime Text 4.0, calling run_command won't give your hooks a chance to intercept/modify it,
 		#  which breaks the transient mark. So we manually call the hook before dispatching :)
@@ -247,14 +268,14 @@ class AlsHidePanelThenRun(sublime_plugin.WindowCommand):
 			print(f"running {command_name} unmodified")
 			view.run_command(command_name, kwargs)
 		else:
-			prevCommand = command_name
+			lastModified = (command_name, kwargs)
 			while modified is not None:
-				print(f"modified {prevCommand} into {modified[0]}")
-				prevCommand = modified[0]
+				print(f"modified {lastModified[0]} into {modified[0]}")
+				lastModified = modified
 				modified = AlsEventListener.instance.on_text_command(view, modified[0], modified[1])
 
-			print(f"running {command_name} (modified)")
-			view.run_command(modified[0], modified[1])
+			print(f"running {lastModified[0]} (modified)")
+			view.run_command(lastModified[0], lastModified[1])
 
 # --- I-Search
 
@@ -268,8 +289,9 @@ class ISearch():
 
 	INPUT_ELEMENT = "input:input"
 	PANEL_NAME = "i-search"
-	FOUND_REGION_NAME = "als_i_search_found"
-	FOCUS_REGION_NAME = "als_i_search_focus"
+	FOUND_REGION_NAME = "als_find_highlight"
+	FOCUS_REGION_NAME = "als_find_focus"
+	EXTRA_SELECTION_REGION_NAME = "als_find_extra_selection"
 	DEBUG_LOG = False
 
 	class Focus:
@@ -311,7 +333,7 @@ class ISearch():
 	# --- Visibility
 
 	def isShowing(self):
-		return self.inputView and self.inputView.window()
+		return bool(self.inputView and self.inputView.window())
 
 	def open(self, forward=True):
 		markSel = MarkSel.get(self.window.active_view())
@@ -335,6 +357,7 @@ class ISearch():
 	def cleanupDrawings(self, view):
 		view.erase_regions(ISearch.FOUND_REGION_NAME)
 		view.erase_regions(ISearch.FOCUS_REGION_NAME)
+		view.erase_regions(ISearch.EXTRA_SELECTION_REGION_NAME)
 
 	# --- Hooks
 
@@ -359,7 +382,6 @@ class ISearch():
 		self.search(isRepeatedSearch=False)
 
 	def onCancel(self):
-		print("INPUT CANCEL")
 		self.cleanup(isAfterClose=True)
 
 	# --- Operations
@@ -440,29 +462,43 @@ class ISearch():
 			self.focus = ISearch.Focus(ISearch.Focus.State.ACTIVE if isRepeatedSearch else ISearch.Focus.State.PASSIVE,
 										bestMatch)
 
-			# NOTE - This is a compromise. Hiding the selection gives us better/visible colors, but showing is beteter
-			#	if they have a big selection.
-			# HMM - Hiding it removes highlight_line :(
+			if keepMark:
+				print("selecting with mark")
+
+			else:
+				print("selecting w/o mark")
 
 			markSel.select(self.focus.region, markAction, extend=keepMark)
-			if markSel.isExactlyPrimaryRegion(self.focus.region, ignoreReversedness=True):
-				markSel.hideSelection()
+			markSel.hideSelection()
+
+			primaryRegion = markSel.primaryRegion()
+			print("    (" + str(primaryRegion.begin()) + ", " + str(primaryRegion.end()) + ")")
+			print("-   (" + str(self.focus.region.begin()) + ", " + str(self.focus.region.end()) + ")")
+			print("====================")
+			extraSelection = MarkSel.subtractRegion(primaryRegion, self.focus.region)
+			for extra in extraSelection:
+				print("=   (" + str(extra.begin()) + ", " + str(extra.end()) + ")")
 			else:
-				markSel.showSelection()
+				print("=   (nothing)")
 
 			# --- Draw around the matches!
 
 			activeView.add_regions(
 				ISearch.FOUND_REGION_NAME,
 				found,
-				scope="als_highlight",
+				# NOTE - Doesn't actually push the scope, just sources color from it. No way that I know of to actually push the "scope" :(
+				scope=ISearch.FOUND_REGION_NAME,
 				flags=sublime.DRAW_NO_FILL)
 
 			activeView.add_regions(
 				ISearch.FOCUS_REGION_NAME,
 				[self.focus.region],
-				scope="als_find_highlight")	# NOTE - Doesn't actually push the scope, just sources color from it.
-											#	No way that I know of to set the foreground color. "scope" :(
+				scope=ISearch.FOCUS_REGION_NAME)
+
+			activeView.add_regions(
+				ISearch.EXTRA_SELECTION_REGION_NAME,
+				extraSelection,
+				scope=ISearch.EXTRA_SELECTION_REGION_NAME)
 
 			if ISearch.DEBUG_LOG:
 				if wrappedAround:
@@ -505,7 +541,7 @@ class AlsIncrementalSearch(sublime_plugin.TextCommand):		# NOTE - TextCommand in
 # --- Listeners/Hooks
 
 class AlsEventListener(sublime_plugin.EventListener):
-	DEBUG_LOG = True
+	DEBUG_LOG = False
 
 	instance = None
 
@@ -517,13 +553,11 @@ class AlsEventListener(sublime_plugin.EventListener):
 		# IMPORTANT - Altering the return value feeds the altered command back into this function.
 		#  Only return a tuple if you have actually altered things, otherwise there is inifnite recursion!
 
-		print(f"MODIFYIIIIIIIIING {command_name}")
 		if self.DEBUG_LOG:	print("[event listener] text_command: " + command_name)
 
 		# Maybe dispatch to input view
 
 		if view.element() == ISearch.INPUT_ELEMENT:
-			print("DISPATCHING TO INPUT VIEW")
 			iSearch = ISearch.get(view.window())
 			return iSearch.onTextCommand(command_name, args)
 
@@ -574,26 +608,6 @@ class AlsEventListener(sublime_plugin.EventListener):
 			markSel.wantIgnoreModification -= 1
 		elif markSel.isMarkActive():
 			markSel.clearAll()
-
-	def on_selection_modified(self, view):
-		pass
-		# HMM - This might be unneeded? Delete? Also delete markSel.wantKeepMark?
-		# if self.DEBUG_LOG:	print("[view event listener] selection_modified")
-
-		# # NOTE - Stretch the selection to accomodate incremental search, etc.
-
-		# markSel = MarkSel.get(self.view)
-		# if markSel is None:
-		# 	return		# NOTE - filters out input view
-
-		# if markSel.isMarkActive():
-		# 	if markSel.wantKeepMark > 0:
-		# 		markSel.placeMark(SelectionAction.KEEP)
-		# 		markSel.wantKeepMark -= 1
-		# 	else:
-		# 		# Expand selection
-		# 		markSel.selectPrimaryRegion(MarkAction.SET, extend=True)
-
 
 	def on_window_command(self, window, command_name, args):
 		if self.DEBUG_LOG: print("[event listener] window_command: " + command_name)
