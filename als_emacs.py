@@ -262,7 +262,14 @@ class AlsHidePanelThenRun(sublime_plugin.WindowCommand):
 		#  which breaks the transient mark. So we manually call the hook before dispatching :)
 
 		command_name = kwargs.pop('command_name')
-		modified = AlsEventListener.instance.on_text_command(view, command_name, kwargs)	# HMM - This relies on event listener on_init being called before this command ever runs...
+
+		modified = None
+		if AlsEventListener.instance:
+			# HMM - It might be possible for this to run before AlsEventListener.__init__(..), but it seems very unlikely?
+			#  This is just a safeguard, but the behavior might still be broken if that happens and something was depending on
+			#  the on_text_command hook running
+			modified = AlsEventListener.instance.on_text_command(view, command_name, kwargs)
+
 
 		if modified is None:
 			print(f"running {command_name} unmodified")
@@ -453,7 +460,7 @@ class ISearch():
 
 			wrappedAround = False
 			if not bestMatch:
-				if self.forward: 	bestMatch = found[0]	# wrap around to top match, HMM - require extra keypress?
+				if self.forward: 	bestMatch = found[0]	# wrap around to top match, HMM - require extra keypress to commit to wraparound?
 				else:				bestMatch = found[-1]	# ... to bot match ...
 				wrappedAround = True
 
@@ -462,24 +469,11 @@ class ISearch():
 			self.focus = ISearch.Focus(ISearch.Focus.State.ACTIVE if isRepeatedSearch else ISearch.Focus.State.PASSIVE,
 										bestMatch)
 
-			if keepMark:
-				print("selecting with mark")
-
-			else:
-				print("selecting w/o mark")
-
 			markSel.select(self.focus.region, markAction, extend=keepMark)
 			markSel.hideSelection()
 
 			primaryRegion = markSel.primaryRegion()
-			print("    (" + str(primaryRegion.begin()) + ", " + str(primaryRegion.end()) + ")")
-			print("-   (" + str(self.focus.region.begin()) + ", " + str(self.focus.region.end()) + ")")
-			print("====================")
 			extraSelection = MarkSel.subtractRegion(primaryRegion, self.focus.region)
-			for extra in extraSelection:
-				print("=   (" + str(extra.begin()) + ", " + str(extra.end()) + ")")
-			else:
-				print("=   (nothing)")
 
 			# --- Draw around the matches!
 
@@ -508,7 +502,7 @@ class ISearch():
 					if self.forward:	print(f"match found at ({match.a}, {match.b}) - ideal start: {searchFrom})")
 					else:				print(f"match (r) found at ({match.a}, {match.b}) - ideal end: {searchFrom})")
 		else:
-			# TODO - play beep here? change highlight line color?
+			# TODO - play beep here?
 			self.focus = ISearch.Focus(ISearch.Focus.State.NIL, None)
 			self.cleanupDrawings(activeView)
 			if ISearch.DEBUG_LOG:
