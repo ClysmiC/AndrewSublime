@@ -4,6 +4,7 @@
 	// --- Caret/line
 	"block_caret": true, 				// HMM - same as (undocumented) inverse_caret_state: true?
 	"caret_style": "blink",
+	// "caret_style": "solid",
 	"highlight_line": true,
 
 	// --- White space / line endings
@@ -13,14 +14,16 @@
 	"ensure_newline_at_eof_on_save": true,
 	"default_line_ending": "unix",
 	"translate_tabs_to_spaces": false,	// HMM - Reconsider tab/space policy?
+	"tab_size": 4,
 
 	// --- Indent guides
 	"draw_indent_guides": true,
 	"indent_guide_options": ["draw_active"],
 
+
 	// --- Font
 	"font_face": "Liberation Mono",
-	"font_size": 12.0, // Default value: 12
+	"font_size": 11,
 	"font_options": ["no_italic"],
 
 	// --- Color scheme
@@ -41,6 +44,11 @@
 	"mini_auto_complete": true, // see https://forum.sublimetext.com/t/making-tab-completion-in-st4-like-st3/58112/10
 
 	// --- Misc.
+
+	"line_numbers": false,			// HMM - Undecided if I like having the extra space or the extra info...
+	"show_definitions": false,
+
+
 	"auto_match_enabled": false,		// NOTE - match delimiters, like ( { ' "
 	"auto_complete": false,				// HMM - Consider looking into this feature and turning on some minimal tab-completion
 	"copy_with_empty_selection": false, // HMM - Consider turning back on. Turned off to mitigate damage from accidental C-x misfires due to emacs brain.
@@ -50,6 +58,12 @@
 	"fold_buttons": false,
 	"match_selection": false, 			// HMM - turn this back on, but just use underlines?
 	"file_tab_style": "square",
+	"hot_exit": "disabled",
+	"remember_workspace": false,
 
 	"word_separators": "./\\()\"'-:,.;<>~!@#$%^&*|+=[]{}`~?_", // NOTE - added _ which corresponds with emacs behavior
+	"ignored_packages":
+	[
+		"Vintage",
+	],
 }

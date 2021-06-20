@@ -1,0 +1,357 @@
+%YAML 1.2
+---
+name: Splice2
+file_extensions: [ sprig, splice, opts, xopts, xml ]
+scope: source.splice
+
+foldingStartMarker: '\('
+foldingStopMarker: '\)'
+keyEquivalent: '^~L'
+
+variables:
+  keywordLanguage: >-
+    and |
+    begin |
+    bind |
+    break |
+    case |
+    Checkpoint |
+    cond |
+    continue |
+    else |
+    extern |
+    finalize |
+    if |
+    let |
+    or |
+    return |
+    TaskThread |
+    while
+
+  keywordLiteral: >-
+    \#null |
+    \#f |
+    \#t
+
+  reservedWords: >-
+    {{keywordLanguage}} |
+
+propBlock:
+
+
+
+contexts:
+  comment:
+    - match: '(;)( (?:BB|NOTE|TODO) \(\w+\))?.*$'
+      captures:
+        1: punctuation.definition.comment.splice
+        2: constant.oid.splice
+      scope: comment.line.semicolon.splice
+
+  propComments:
+    begin: '\s*(/COMMENTS:)'
+    beginCaptures:
+      0: entity.other.attribute-name.splice
+    end: '}'
+    name: comment.line.semicolon.splice
+    patterns:
+      - match: '\b((?:BB|NOTE) \(\w+\))'
+        name: constant.oid.splice
+
+  keywords:
+
+  typekeywords:
+
+  defstruct:
+
+  typedef:
+
+  listoperations:
+
+  macro:
+
+  functionkeywords:
+
+  functionNamedParameter:
+
+  nameGroupProps:
+
+  nameProps:
+
+  props:
+
+  statics:
+
+  nulls:
+
+  mathconstants:
+
+  oidlist:
+
+  oids:
+
+  oidTextProps:
+
+  numbers:
+
+  this:
+
+  memberVars:
+
+  strings:
+
+  logicaloperators:
+
+  mathoperators:
+
+  storage:
+
+  poundconstants:
+
+  support:
+
+  source.splicegen:
+
+  propArgs:
+
+  userEnums:
+
+  storageClass:
+
+  identifiers:
+
+  functionCalls:
+
+
+splice:
+  keywords:
+
+  typekeywords:
+
+  defstruct:
+
+  oidlist:
+
+  listoperations:
+
+  macro:
+
+  functionkeywords:
+
+  functionNamedParameter:
+
+  statics:
+
+  nulls:
+
+  mathconstants:
+
+  oids:
+
+  numbers:
+
+  memberVars:
+
+  strings:
+
+  logicaloperators:
+
+  mathoperators:
+
+  storage:
+
+  storageClass:
+
+  poundconstants:
+
+  support:
+
+  source.splicegen:
+
+
+
+keywords:
+  - match: '\b(?i:and|begin|break|case|cond|continue|else|if|let|or|return|while|bind|finalize|extern|Checkpoint|TaskThread)\b'
+    name: keyword.control.splice
+
+typekeywords:
+  - match: '\b(?i:cast|geto|set|seto|structt)\b'
+    name: storage.type.function-type.splice
+
+defstruct:
+  - match: '\b(defstruct)\s+(\w+)\b'
+    captures:
+      1: storage.type.function-type.splice
+      2: storage.splice entity.name.type
+    name: storage.splice
+
+typedef:
+  - match: '\b(typedef)\s+(\w+)\s+(\w+)\b'
+    captures:
+      1: storage.type.function-type.splice
+      2: storage.splice
+      3: storage.splice entity.name.type
+    name: storage.splice
+
+listoperations:
+  - match: '\b(?i:get_random_item|insert|is_empty|is_member|length|pop|pop_first|push|push_first|remove_index|remove_value|shuffle|sort)\b'
+    name: storage.type.function-type.splice
+
+macro:
+- match: '\b(define\-macro)(?:\s+)(\w*)\s*'
+  captures:
+    1: storage.type.function-type.splice
+    2: reference.identifier.value.splice
+    3: storage.splice entity.name.value
+  name: storage.splice
+
+functionkeywords:
+  - match: '(\b(?:defun|lambda|lambdat)\b)(\s+(?:list)?):?(\w+)(?:\s+)(\w+)(?= ?\()'
+    captures:
+      1: storage.type.function-type.splice
+      2: storage.splice
+      3: storage.splice
+      4: entity.name.function.splice
+    name: meta.function.splice
+    scope: source.splice.function
+
+functionNamedParameter:
+  - match: '\s(\:)(\w+)\b'
+    captures:
+      1: keyword.operator.splice
+      2: storage.type.function-type.splice
+
+
+nameGroupProps:
+  - match: '\b((?i:lo_?group|obj|objv|objective|msn|ptask|task|dlggrp|rc)_\w+)\b'
+    name: variable.parameter.splice
+
+nameProps:
+  - match: '\s*(/NAME:)\s*(\w+) '
+    captures:
+      1: entity.other.attribute-name.splice
+      2: constant.numeric.splice
+
+props:
+  - match: '\s*(/\w+:?)'    # begin
+    captures:                 # beginCaptures
+      1: entity.other.attribute-name.splice
+    end: '\n'
+  - include: comment
+  - include: numbers
+  - include: mathoperators
+  - include: oidTextProps
+  - include: propArgs
+  - include: nameGroupProps
+  - include: nulls
+  - include: source.splicegen
+
+propArgs:
+  - match: '\s*(\w+) ?(=)'
+    captures:
+      1: storage.type.function-type.splice
+      2: keyword.operator.splice
+
+storage:
+  - match: '\b((?i:int|float|bool|OID|Point|Vector|Matrix|void|public|Variant|string|list:?))\b'
+    name: storage.splice
+
+storageClass:
+  - match: '\b([CS][A-Z][a-z][a-zA-Z]*)\b'
+    name: storage.splice
+
+support:
+  - match: '\b(?i:Assert|BindThread|BindThreadToCheckpoint|BindThreadToTask|BindToCheckpoint|BindToTask|Breakpoint|CFilter|CLength|ClqCreate|Dec|FIsMember|FIsNullList|FIsTrueForAll|FIsTrueForAny|ForCount|ForEach|ForEachSafe|GetElement|Inc|Index|LAppend|LCreate|LFilter|LGenerate|LMap|LmCreate|LNamed|LoWaitForSignal|LRandomize|LRest|LSlice|LSort|MatCreate|MrCreate|NBitwiseAnd|NBitwiseOr|OftCreate|Pop|PosCreate|Print|PrintAt|PrintCon|Push|RandFromList|RgbaCreate|RtiCast|RunDevCmd|SCreate|ShowMessage|ShowWarn|SleepWhile|SmpaCreate|SmpCreate|Super|Thread|ThreadChild|TriggerUserWarp|VecCreate|WaitForSignal)\b'
+    name: support.function.splice
+
+statics:
+  - match: '\bs_[\w]*\b'
+    name: constant.language.splice
+
+nulls:
+  - match: '\b(?i:null|nil|y(es)?|no?|true|false|enabled?|disabled?|on|off)\b'
+    name: constant.language.splice
+
+mathconstants:
+  - match: '\b(?i:FLT_MAX|halfPi|INT_MAX|kLmNegOneOne|kLmZeroOne|kUnitXAxis|kUnitYAxis|kUnitZAxis|pi|twoPi|kZero)\b'
+    name: constant.numeric.splice
+
+nestedparen:
+  - match: "(?!')(\\()"     # begin
+    end: '\)'
+  - include: comment
+  - include: splice
+
+oidlist:
+  - match: "('\\()"      # begin
+    captures:
+      1: constant.oid.splice
+    end: '\)'
+  # endCaptures:
+  #   0: constant.oid.splice
+  - include: comment
+  - include: splice
+  - include: nestedparen
+  - match: '(?!:)\b([a-zA-Z_]\w*)\b(?![:.])'
+    name: constant.oid.splice
+
+oids:
+  - match: "(\\@|\\')[0-9a-zA-Z\\+\\-_]*"
+    name: constant.oid.splice
+
+oidTextProps:
+  - match: '\bu_[0-9a-zA-Z\+\-_]*\b'
+    name: constant.oid.splice
+
+numbers:
+  - match: '-?\b((0(x|X)[0-9a-fA-F]*)|(([0-9]+\.?[0-9]*)|(\.[0-9]+))((e|E)(\+|-)?[0-9]+)?)(L|l|UL|ul|u|U|F|f|ll|LL|ull|ULL)?\b'
+    name: constant.numeric.splice
+
+this:
+  - match: '\bthis\b'
+    name: constant.other.splice
+
+poundconstants:
+  - name: constant.character.splice
+    match: '(#)(\w|[\\+-=&lt;&gt;'\"&#])+'
+    captures:
+      1: punctuation.definition.constant.splice
+
+userEnums:
+  - match: '\b(?:[A-Z][A-Z]+_[A-Z]\w*[a-z])\b'
+    name: constant.language.splice
+
+functionCalls:
+  - match: '(?&lt;=\()(?i:\w+)\b(?!\.)'
+    name: reference.identifier.function.splice
+
+identifiers:
+  - match: '(?&lt;=\.)(?i:\w+)\b'
+    name: variable.parameter.splice
+
+logicaloperators:
+  - match: '\b(?i:eq|neq|and|or|=|-|\.)\b'
+    name: keyword.operator.splice
+
+mathoperators:
+  - match: '(?i:\+|=|-|\*|%|/|&gt;|&lt;|!|~|\[|\]|\||\bpow\b|\bmin\b|\bmax\b)'
+    name: keyword.operator.splice
+
+memberVars:
+  - match: '\bm_[\w]+\b'
+    name: variable.parameter.splice
+  strings:
+    begin: '\"'
+    beginCaptures:
+      0: punctuation.definition.string.begin.splice
+    end: '[\"\n]'
+    endCaptures:
+      0: punctuation.definition.string.end.splice
+    name: string.quoted.double.splice
+    patterns:
+    [
+      - match: '\\.'
+        name: constant.character.escape.splice
+      - match: '%[dfsvpmbolext]'
+        name: constant.character.escape.splice
+    ]

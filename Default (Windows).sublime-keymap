@@ -17,6 +17,7 @@
 	// --- Navigate cursor...
 
 	// --- To beginnning/end of line
+	//	NOTE - 'hard' means to go past tabs/whitespace to the real end of the line
 	{ "keys": ["ctrl+a"], "command": "move_to", "args": {"to": "hardbol" } },
 	{ "keys": ["ctrl+e"], "command": "move_to", "args": {"to": "hardeol" } },
 	{ "keys": ["ctrl+shift+a"], "command": "move_to", "args": {"to": "hardbol", "extend": true } },
@@ -51,8 +52,8 @@
 	// --- Select all
 	{ "keys": ["ctrl+h", "h"], "command": "select_all" },
 
-	// --- Switch active "buffer" (in sublime terms, "group")
-	{ "keys": ["ctrl+h", "o"], "command": "focus_neighboring_group" },
+	// --- Switch active view
+	{ "keys": ["ctrl+h", "o"], "command": "als_other_view" },
 
 	// --- Indent
 	{ "keys": ["tab"], "command": "insert", "args": {"characters": "\t"} },

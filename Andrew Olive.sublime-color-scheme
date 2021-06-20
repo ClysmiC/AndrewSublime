@@ -93,8 +93,14 @@
 
         {
             "name": "Storage type",
-            "scope": "storage.type | entity.name",
+            "scope": "storage.type",
             "foreground": "var(type)",
+        },
+
+        {
+            "name": "Storage modifier",
+            "scope": "storage.modifier",
+            "foreground": "var(keyword_white)",
         },
 
         {
