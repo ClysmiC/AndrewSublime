@@ -45,8 +45,11 @@
 
 	// --- Misc.
 
-	"line_numbers": false,			// HMM - Undecided if I like having the extra space or the extra info...
+	"line_numbers": true,			// HMM - Undecided if I like having the extra space or the extra info...
 	"show_definitions": false,
+	"overlay_scroll_bars": "enabled",	// HMM - This is backwards... I disable them by setting to "enabled"?? Way to go, Sublime.
+	"word_wrap": false,
+	"scroll_speed": 0.5,
 
 
 	"auto_match_enabled": false,		// NOTE - match delimiters, like ( { ' "

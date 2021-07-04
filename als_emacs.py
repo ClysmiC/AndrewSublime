@@ -49,18 +49,19 @@ class ViewEx():
 		result = sublime.Region(0, self.view.size())
 		return result
 
-# LOG_DEBUG = "DEBUG"
-# LOG_INIT = "init2"
-# LOG_HIDE_PANEL_THEN_RUN = "als_hide_panel_then_run"
-# LOG_EVENTS = "event listener"
-# LOG_ISEARCH = "i-search"
-
 LOG_DEBUG = None
 LOG_INIT = None
 LOG_HIDE_PANEL_THEN_RUN = None
 LOG_EVENTS = None
 LOG_ISEARCH = None
+LOG_BUILD = None
 
+# LOG_DEBUG = "DEBUG"
+# LOG_INIT = "init2"
+# LOG_HIDE_PANEL_THEN_RUN = "als_hide_panel_then_run"
+# LOG_EVENTS = "event listener"
+# LOG_ISEARCH = "i-search"
+# LOG_BUILD = "build"
 
 
 
@@ -299,6 +300,51 @@ class AlsOtherView(sublime_plugin.WindowCommand):
 			iGroupActiveDesired = (iGroupActive + 1) % self.window.num_groups()
 			self.window.focus_group(iGroupActiveDesired)
 
+class AlsTransposeViews(sublime_plugin.WindowCommand):
+	def run(self):
+
+		if self.window.num_groups() != 2:
+			return
+
+		activeViewBeforeTranspose = self.window.active_view()
+		view0 = self.window.active_view_in_group(0)
+		view1 = self.window.active_view_in_group(1)
+		self.window.set_view_index(view0, 1, 0)
+		self.window.set_view_index(view1, 0, 0)
+		self.window.focus_view(activeViewBeforeTranspose)
+
+from pathlib import Path
+
+class AlsRunBuildBat(sublime_plugin.WindowCommand):
+	def run(self):
+		activeView = self.window.active_view()
+		fileName = activeView.file_name()
+		if fileName:
+			directory = Path(activeView.file_name())
+			if not directory.is_dir():
+				directory = directory.parent
+
+			if not directory.is_dir():	raise AssertionError("Can't find directory to run build file")
+
+			buildFile = None
+			while True:
+				buildFile = directory / "build.bat"
+				if buildFile.exists():
+					break
+
+				# HMM - Is this really the only/best way to check if we are at the root directory...? Sigh...
+				parent = directory.parent
+				if directory.samefile(parent):
+					break
+
+				directory = parent
+
+			if buildFile and buildFile.exists():
+				alsTrace(LOG_BUILD, f"Running {str(buildFile)}")
+				self.window.run_command("exec", { "cmd": [str(buildFile)]})
+			else:
+				alsTrace(LOG_BUILD, "No build.bat found")
+
 class AlsHidePanelThenRun(sublime_plugin.WindowCommand):
 	"""Auto-close a panel and jump right back into the normal view with a command"""
 	def run(self, **kwargs):
@@ -404,7 +450,7 @@ class ISearch():
 
 		alsTrace(LOG_ISEARCH, f"cleanup({isAfterClose})")
 		if isAfterClose:
-			# WindowEx.get(self.window).clearCustomStatus()
+			WindowEx.get(self.window).clearCustomStatus()
 
 			alsTrace(LOG_ISEARCH, f"cleanup - getmarksel")
 			activeView = self.window.active_view()
@@ -531,7 +577,7 @@ class ISearch():
 			else:
 				return
 
-		# windowEx = WindowEx.get(self.window)
+		windowEx = WindowEx.get(self.window)
 		markSel = MarkSel.get(self.window.active_view())
 		keepMark = markSel.isMarkActive()
 		markAction = MarkAction.KEEP if keepMark else MarkAction.CLEAR # @Redundant with keepMark
@@ -612,8 +658,7 @@ class ISearch():
 			markSel.select(self.focus.region, markAction, extend=keepMark)
 			markSel.hideSelection()
 
-			
-			# windowEx.showCustomStatus(f"Match {iBest + 1} of {len(found)}")
+			windowEx.showCustomStatus(f"Match {iBest + 1} of {len(found)}")
 
 			primaryRegion = markSel.primaryRegion()
 			extraSelection = MarkSel.subtractRegion(primaryRegion, self.focus.region)
@@ -645,7 +690,7 @@ class ISearch():
 				else:				alsTrace(LOG_ISEARCH, f"match (r) found at ({match.a}, {match.b}) - ideal end: {searchFrom})")
 		else:
 			# TODO - play beep here?
-			# windowEx.showCustomStatus(f"No matches")
+			windowEx.showCustomStatus(f"No matches")
 			self.focus = ISearch.Focus(ISearch.Focus.State.NIL, None)
 			self.cleanupDrawings(activeView)
 
@@ -656,7 +701,6 @@ class ISearch():
 
 class AlsIncrementalSearch(sublime_plugin.TextCommand):		# NOTE - TextCommand instead of WindowCommand
 															#	TextCommand gives us access to the view, which lets us detect re-search
-
 	def run(self, edit, forward=True):
 
 		iSearch = ISearch.get(self.view.window())
@@ -765,14 +809,15 @@ class AlsEventListener(sublime_plugin.EventListener):
 	def on_exit(self):
 		pass
 
+LOG_TO_FILE = False
 def plugin_loaded():
-	with open('als_trace.txt','w') as file:
-	    pass	# NOTE - Clears file
+	if LOG_TO_FILE:
+		with open('als_trace.txt','w') as file:
+		    pass	# NOTE - Clears file
 
 # TODO - alsAssert which logs + exits on failure, instead of raising AssertionError
 def alsTrace(tag, line):
 	if tag:
-		LOG_TO_FILE = False
 		if LOG_TO_FILE:
 			# SLOW - opening file every time we log lol
 			with open('als_trace.txt', 'a') as file:

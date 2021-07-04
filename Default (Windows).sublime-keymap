@@ -11,8 +11,6 @@
 	{ "keys": ["f1"], "command": "show_panel", "args": {"panel": "console", "toggle": true } },
 	{ "keys": ["ctrl+h", "b"], "command": "toggle_side_bar" },
 
-
-
 	//
 	// --- Navigate cursor...
 
@@ -52,8 +50,9 @@
 	// --- Select all
 	{ "keys": ["ctrl+h", "h"], "command": "select_all" },
 
-	// --- Switch active view
+	// --- View/buffer management
 	{ "keys": ["ctrl+h", "o"], "command": "als_other_view" },
+	{ "keys": ["ctrl+h", "t"], "command": "als_transpose_views" },
 
 	// --- Indent
 	{ "keys": ["tab"], "command": "insert", "args": {"characters": "\t"} },
@@ -62,6 +61,9 @@
 	},
 	{ "keys": ["shift+tab"], "command": "unindent" },
 
+	//
+	// --- Build
+	{ "keys": ["ctrl+h", "m"], "command": "als_run_build_bat" },
 
 	// --- Lock font size (only changeable in prefs)
 	// 		# TODO - Do this with a plugin? EventListener doesn't seem to hook into this... I don't think there is an ApplicationCommandListener?
@@ -137,8 +139,8 @@
 	{ "keys": ["alt+r"], "command": "show_panel", "args": {"panel": "replace", "reverse": false } },
 
 	// --- Transient mark
-	{ "keys": ["ctrl+alt+space"], "command": "als_inflate_selection_to_fill_lines" },
-	{ "keys": ["alt+space"], "command": "als_reverse_selection" },
+	{ "keys": ["alt+space"], "command": "als_inflate_selection_to_fill_lines" },
+	{ "keys": ["ctrl+alt+space"], "command": "als_reverse_selection" },
 	{ "keys": ["ctrl+space"], "command": "als_set_mark" },
 	{ "keys": ["escape"], "command": "als_clear_selection", "context":
 		[
