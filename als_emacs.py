@@ -110,7 +110,7 @@ class SelectionAction(Enum):
 class MarkAction(Enum):
 	CLEAR					= 0
 	KEEP					= 1 # NOTE - SETs if already active, CLEARs if otherwise
-	SET						= 2
+	SET						= 2 # NOTE - Doesn't add to ring... should it?
 
 class MarkSel():
 
@@ -122,6 +122,8 @@ class MarkSel():
 		self.view = view
 		self.selection = view.sel()
 		self.hiddenSelRegion = None			# Supports ISearch focus color not being obscured by a selected region
+		self.markRing = [-1] * 16
+		self.iMarkRing = 0
 		self.clearMark()
 
 	def clearMark(self):
@@ -204,10 +206,13 @@ class MarkSel():
 		return self.mark >= 0
 
 	# NOTE - clear with clearMark(..)
-	def placeMark(self, selectionAction):
-		cursor = self.primaryCursor()
-		if self.mark != cursor:
-			self.mark = self.primaryCursor()
+	def placeMark(self, selectionAction, addToMarkRing=True):
+		self.mark = self.primaryCursor()
+
+		if addToMarkRing:
+			self.markRing[self.iMarkRing] = self.mark
+			self.iMarkRing += 1
+			self.iMarkRing %= len(self.markRing)
 
 		if selectionAction == SelectionAction.CLEAR:
 			self.selection.clear()
@@ -253,6 +258,28 @@ class MarkSel():
 	def isSingleEmptySelection(self):
 		return len(self.selection) == 1 and self.selection[0].a == self.selection[0].b
 
+	# TODO - Maintain historical mark positions even if the buffer has been edited? Emacs does this, but I'm
+	#  not sure how it's implemented. Maybe sublime has something in its API I can use?
+
+	def cycleMarkPrev(self):
+		iPrev = self.iMarkRing - 1
+		if (iPrev < 0):
+			iPrev = len(self.markRing) - 1
+
+		markPrev = self.markRing[iPrev]
+		if markPrev >= 0:
+			self.select(sublime.Region(markPrev, markPrev), MarkAction.CLEAR)
+			self.iMarkRing = iPrev
+
+	def cycleMarkNext(self):
+		iNext = self.iMarkRing + 1
+		iNext %= len(self.markRing)
+
+		markNext = self.markRing[iNext]
+		if markNext >= 0:
+			self.select(sublime.Region(markNext, markNext), MarkAction.CLEAR)
+			self.iMarkRing = iNext
+
 
 
 # --- Text Commands (Prefixed with 'Als' to distinguish between my commands and built-in sublime commands)
@@ -261,7 +288,21 @@ class AlsSetMark(sublime_plugin.TextCommand):
 
 	def run(self, edit):
 		markSel = MarkSel.get(self.view)
-		markSel.placeMark(SelectionAction.CLEAR)
+
+		if markSel.mark == markSel.primaryCursor():
+			markSel.clearAll()
+		else:
+			markSel.placeMark(SelectionAction.CLEAR)
+
+class AlsCycleMarkPrev(sublime_plugin.TextCommand):
+	def run(self, edit):
+		markSel = MarkSel.get(self.view)
+		markSel.cycleMarkPrev()
+
+class AlsCycleMarkNext(sublime_plugin.TextCommand):
+	def run(self, edit):
+		markSel = MarkSel.get(self.view)
+		markSel.cycleMarkNext()
 
 class AlsClearSelection(sublime_plugin.TextCommand):
 
@@ -314,9 +355,12 @@ class AlsTransposeViews(sublime_plugin.WindowCommand):
 		self.window.focus_view(activeViewBeforeTranspose)
 
 from pathlib import Path
+import os
 
 class AlsRunBuildBat(sublime_plugin.WindowCommand):
 	def run(self):
+		print("RTS_ROOT: " + os.environ['RTS_ROOT'])
+
 		activeView = self.window.active_view()
 		fileName = activeView.file_name()
 		if fileName:
@@ -341,7 +385,7 @@ class AlsRunBuildBat(sublime_plugin.WindowCommand):
 
 			if buildFile and buildFile.exists():
 				alsTrace(LOG_BUILD, f"Running {str(buildFile)}")
-				self.window.run_command("exec", { "cmd": [str(buildFile)]})
+				self.window.run_command("exec", { "shell_cmd": str(buildFile)})
 			else:
 				alsTrace(LOG_BUILD, "No build.bat found")
 

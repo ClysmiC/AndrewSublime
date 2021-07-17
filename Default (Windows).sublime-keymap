@@ -2,6 +2,20 @@
 	// --- Unbind some default bindings
 	{ "keys": ["ctrl+h"], "command": "nop" },
 	{ "keys": ["ctrl+w"], "command": "nop" }, // No more accidentally closing the window due to my emacs brain :)
+	{ "keys": ["ctrl+z"], "command": "undo" },
+	{ "keys": ["ctrl+shift+z"], "command": "nop" },
+	{ "keys": ["ctrl+u"], "command": "nop" },
+	{ "keys": ["ctrl+shift+u"], "command": "nop" },
+
+	// --- Redo
+	{ "keys": ["ctrl+y"], "command": "redo" }, // Instead of default 'redo_or_repeat' which does this weird (but apparently standard?) behavior: https://support.microsoft.com/en-us/office/undo-redo-or-repeat-an-action-84bdb9bc-4e23-4f06-ba78-f7b893eb2d28
+
+	// --- Reload/revert file
+	{ "keys": ["f5"], "command": "revert" },
+
+	// --- Mark ring
+	{ "keys": ["alt+shift+n"], "command": "als_cycle_mark_next" },
+	{ "keys": ["alt+shift+h"], "command": "als_cycle_mark_prev" },
 
 	// --- Command palette
 	{ "keys": ["ctrl+shift+p"], "command": "nop" },
