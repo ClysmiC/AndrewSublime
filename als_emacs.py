@@ -125,16 +125,7 @@ class MarkSel():
 		self.hiddenSelRegion = None			# Supports ISearch focus color not being obscured by a selected region
 		self.markRing = [-1] * 16
 		self.iMarkRingStart = 0
-
-		TODO START HERE---
-
-		# I'm not sure how I want iMarkRingCycle to behave. I think I want the ability to sit "between" two spots in the
-		#  mark ring, but also the ability to sit "on" one. For example, when you are cycling back and forth, if you are on i = 3,
-		#  forward should send you to i = 4, backwards to i = 2. But if you otherwise start moving around, I'd like to sit at i = 3.5 so to speak...
-		#  Or maybe that should nudge us to i = 4 and make the previous i = 4 invalid? This is how undo/redo stacks generally work... but idk if I
-		#  want to do that for moves, edits, or just mark ring edits.... think about it! Test it out in emacs too!
-
-		self.iMarkRingCycle = 0
+		self.iMarkRingCycle = 0				# NOTE - Points where next mark will write. Also, what "next" should jump to.
 		self.iMarkRingEnd = 0
 		self.clearMark()
 
@@ -273,13 +264,28 @@ class MarkSel():
 	# TODO - Maintain historical mark positions even if the buffer has been edited? Emacs does this, but I'm
 	#  not sure how it's implemented. Maybe sublime has something in its API I can use?
 
-	def addToMarkRing(self, iPos):
+	def addToMarkRing(self, iPos, ignoreDuplicate=True):
 		alsTrace(True, f"Adding {iPos} to mark ring (i = {self.iMarkRingEnd}, view element = {self.view.element()}, view id = {self.view.id()}")
 
 		iPlace = self.iMarkRingCycle
-		if self.isIMarkRingValid(self.iMarkRingCycle): # we just jumped to this index, so lets push it 1 past
+
+		# We may have just jumped to this index, so lets nudge to 1 past.
+		# HMM - Is this right?
+
+		if self.isIMarkRingValid(self.iMarkRingCycle):
 			iPlace += 1
 			iPlace %= len(self.markRing)
+
+		if ignoreDuplicate:
+			iPrev = self.iMarkRingCycle - 1
+			if iPrev < 0:
+				iPrev = len(self.markRing) - 1
+
+			if self.isIMarkRingValid(iPrev):
+				prevMark = self.markRing[iPrev]
+				if iPos == prevMark:
+					alsTrace(True, f"Skipping duplicate addToMarkRing with iPos = {iPos} (same as mark i{iPrev})")
+					return
 
 		self.markRing[iPlace] = iPos
 		self.iMarkRingEnd = iPlace + 1
@@ -328,7 +334,28 @@ class MarkSel():
 			alsTrace(LOG_MARK_RING, f"cycle prev, i = {iPrev} is invalid")
 			return
 
+		# Keep looking back if these marks aren't actually moving us anywhere
+
 		markPrev = self.markRing[iPrev]
+		cursor = self.primaryCursor()
+
+		if cursor >= 0:
+
+			while cursor >= 0 and markPrev == cursor and iPrev != self.iMarkRingCycle:
+				alsTrace(LOG_MARK_RING, f"cycle prev looping because mark i{iPrev} = {markPrev} and cursor = {cursor}")
+
+				iPrev -= 1
+				if iPrev < 0:
+					iPrev = len(self.markRing) - 1
+
+				if not self.isIMarkRingValid(iPrev):
+					alsTrace(LOG_MARK_RING, f"cycle prev looping, i = {iPrev} is invalid")
+					return
+
+				markPrev = self.markRing[iPrev]
+				alsTrace(LOG_MARK_RING, f"cycle prev looping, i = {iPrev}")
+
+
 		if markPrev >= 0:
 
 			# Maybe leave breadcrumb at the tail before jumping away
