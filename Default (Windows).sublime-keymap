@@ -16,6 +16,7 @@
 	// --- Mark ring
 	{ "keys": ["alt+shift+n"], "command": "als_cycle_mark_next" },
 	{ "keys": ["alt+shift+h"], "command": "als_cycle_mark_prev" },
+	{ "keys": ["alt+shift+;"], "command": "als_debug_trace_mark_ring" },
 
 	// --- Command palette
 	{ "keys": ["ctrl+shift+p"], "command": "nop" },

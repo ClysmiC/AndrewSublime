@@ -55,13 +55,15 @@ LOG_HIDE_PANEL_THEN_RUN = None
 LOG_EVENTS = None
 LOG_ISEARCH = None
 LOG_BUILD = None
+LOG_MARK_RING = None
 
-# LOG_DEBUG = "DEBUG"
+LOG_DEBUG = "DEBUG"
 # LOG_INIT = "init2"
 # LOG_HIDE_PANEL_THEN_RUN = "als_hide_panel_then_run"
 # LOG_EVENTS = "event listener"
 # LOG_ISEARCH = "i-search"
 # LOG_BUILD = "build"
+LOG_MARK_RING = "mark-ring"
 
 
 
@@ -73,7 +75,6 @@ class WindowEx():
 	dictionary = {}
 
 	def __init__(self, window):
-		alsTrace(LOG_INIT, "Ctor for window with id " + str(window.id()))
 		self.window = window
 		self.iSearch = ISearch(window)
 
@@ -123,7 +124,18 @@ class MarkSel():
 		self.selection = view.sel()
 		self.hiddenSelRegion = None			# Supports ISearch focus color not being obscured by a selected region
 		self.markRing = [-1] * 16
-		self.iMarkRing = 0
+		self.iMarkRingStart = 0
+
+		TODO START HERE---
+
+		# I'm not sure how I want iMarkRingCycle to behave. I think I want the ability to sit "between" two spots in the
+		#  mark ring, but also the ability to sit "on" one. For example, when you are cycling back and forth, if you are on i = 3,
+		#  forward should send you to i = 4, backwards to i = 2. But if you otherwise start moving around, I'd like to sit at i = 3.5 so to speak...
+		#  Or maybe that should nudge us to i = 4 and make the previous i = 4 invalid? This is how undo/redo stacks generally work... but idk if I
+		#  want to do that for moves, edits, or just mark ring edits.... think about it! Test it out in emacs too!
+
+		self.iMarkRingCycle = 0
+		self.iMarkRingEnd = 0
 		self.clearMark()
 
 	def clearMark(self):
@@ -210,9 +222,7 @@ class MarkSel():
 		self.mark = self.primaryCursor()
 
 		if addToMarkRing:
-			self.markRing[self.iMarkRing] = self.mark
-			self.iMarkRing += 1
-			self.iMarkRing %= len(self.markRing)
+			self.addMarkToMarkRing()
 
 		if selectionAction == SelectionAction.CLEAR:
 			self.selection.clear()
@@ -239,8 +249,8 @@ class MarkSel():
 		if markAction == MarkAction.CLEAR:
 			self.clearMark()
 
-		elif 	(markAction == MarkAction.SET) or \
-				(markAction == MarkAction.KEEP and self.isMarkActive()):
+		elif (markAction == MarkAction.SET) or \
+			(markAction == MarkAction.KEEP and self.isMarkActive()):
 			self.mark = region.a
 
 		return region
@@ -258,28 +268,119 @@ class MarkSel():
 	def isSingleEmptySelection(self):
 		return len(self.selection) == 1 and self.selection[0].a == self.selection[0].b
 
+	# --- MARK RING
+
 	# TODO - Maintain historical mark positions even if the buffer has been edited? Emacs does this, but I'm
 	#  not sure how it's implemented. Maybe sublime has something in its API I can use?
 
-	def cycleMarkPrev(self):
-		iPrev = self.iMarkRing - 1
-		if (iPrev < 0):
+	def addToMarkRing(self, iPos):
+		alsTrace(True, f"Adding {iPos} to mark ring (i = {self.iMarkRingEnd}, view element = {self.view.element()}, view id = {self.view.id()}")
+
+		iPlace = self.iMarkRingCycle
+		if self.isIMarkRingValid(self.iMarkRingCycle): # we just jumped to this index, so lets push it 1 past
+			iPlace += 1
+			iPlace %= len(self.markRing)
+
+		self.markRing[iPlace] = iPos
+		self.iMarkRingEnd = iPlace + 1
+		self.iMarkRingEnd %= len(self.markRing)
+		self.iMarkRingCycle = self.iMarkRingEnd
+
+		if self.iMarkRingEnd == self.iMarkRingStart:
+			self.iMarkRingStart += 1
+			self.iMarkRingStart %= len(self.markRing)
+
+		self.debugTraceMarkRing()
+
+	def addMarkToMarkRing(self):
+		if self.isMarkActive():
+			self.addToMarkRing(self.mark)
+
+	def addPrimaryCursorToMarkRing(self):
+		alsTrace(LOG_MARK_RING, f"about to add primary cursor of {self.primaryCursor()}")
+		self.addToMarkRing(self.primaryCursor())
+
+	def markRingCt(self):
+		return self.getVirtualIndex(self.iMarkRingEnd) - self.iMarkRingStart
+
+	def isMarkRingEmpty(self):
+		return self.iMarkRingStart == self.iMarkRingEnd
+
+	def isIMarkRingValid(self, iMarkRing):
+		iOffset = self.getVirtualIndex(iMarkRing) - self.iMarkRingStart
+		return (iOffset < self.markRingCt())
+
+	def getVirtualIndex(self, i):
+		if self.iMarkRingStart > i:
+			return i + len(self.markRing)
+
+		return i
+
+	def cycleMarkPrev(self, leaveMarkRingCrumbIfAtTail=True):
+
+		isAtTail = (self.getVirtualIndex(self.iMarkRingCycle) == self.iMarkRingEnd)
+
+		iPrev = self.iMarkRingCycle - 1
+		if iPrev < 0:
 			iPrev = len(self.markRing) - 1
+
+		if not self.isIMarkRingValid(iPrev):
+			alsTrace(LOG_MARK_RING, f"cycle prev, i = {iPrev} is invalid")
+			return
 
 		markPrev = self.markRing[iPrev]
 		if markPrev >= 0:
+
+			# Maybe leave breadcrumb at the tail before jumping away
+
+			if leaveMarkRingCrumbIfAtTail and isAtTail and markPrev != self.primaryCursor():
+				self.addPrimaryCursorToMarkRing()
+
 			self.select(sublime.Region(markPrev, markPrev), MarkAction.CLEAR)
-			self.iMarkRing = iPrev
+			self.iMarkRingCycle = iPrev
+			if LOG_MARK_RING:
+				self.debugTraceMarkRing()
+				alsTrace(LOG_MARK_RING, f"cycle prev to {markPrev}, i = {self.iMarkRingCycle}")
+		else:
+			raise AssertionError("Mark index is valid but value is <= 0?")
 
 	def cycleMarkNext(self):
-		iNext = self.iMarkRing + 1
+
+		iNext = self.iMarkRingCycle + 1
 		iNext %= len(self.markRing)
+
+		if not self.isIMarkRingValid(iNext):
+			alsTrace(LOG_MARK_RING, f"cycle next, i = {iNext} is invalid")
+			return
 
 		markNext = self.markRing[iNext]
 		if markNext >= 0:
 			self.select(sublime.Region(markNext, markNext), MarkAction.CLEAR)
-			self.iMarkRing = iNext
+			self.iMarkRingCycle = iNext
+			if LOG_MARK_RING:
+				self.debugTraceMarkRing()
+				alsTrace(LOG_MARK_RING, f"cycle next to {markNext}, i = {self.iMarkRingCycle}")
+		else:
+			raise AssertionError("Mark index is valid but value is <= 0?")
 
+	def debugTraceMarkRing(self):
+		alsTrace(LOG_MARK_RING, f"\nMark ring for view id = {self.view.id()}")
+		for i in range(len(self.markRing)):
+			endStr = ""
+			isCycleStr = ""
+			if i == self.iMarkRingCycle:
+				isCycleStr = "\t*"
+
+			if i == self.iMarkRingEnd and i == self.iMarkRingStart:
+				endStr = "\t[]"
+			elif i == self.iMarkRingStart:
+				endStr = "\tX"
+			elif i == self.iMarkRingEnd:
+				endStr = "\tO"
+			elif self.isIMarkRingValid(i):
+				endStr = "\t|"
+
+			alsTrace(LOG_MARK_RING, f"{i}\t\t{str(self.markRing[i]).zfill(6)}{endStr}{isCycleStr}")
 
 
 # --- Text Commands (Prefixed with 'Als' to distinguish between my commands and built-in sublime commands)
@@ -303,6 +404,11 @@ class AlsCycleMarkNext(sublime_plugin.TextCommand):
 	def run(self, edit):
 		markSel = MarkSel.get(self.view)
 		markSel.cycleMarkNext()
+
+class AlsDebugTraceMarkRing(sublime_plugin.TextCommand):
+	def run(self, edit):
+		markSel = MarkSel.get(self.view)
+		markSel.debugTraceMarkRing()
 
 class AlsClearSelection(sublime_plugin.TextCommand):
 
@@ -417,7 +523,7 @@ class AlsHidePanelThenRun(sublime_plugin.WindowCommand):
 
 
 		if modified is None:
-			alsTrace(f"running {command_name} unmodified")
+			alsTrace(LOG_HIDE_PANEL_THEN_RUN, f"running {command_name} unmodified")
 			view.run_command(command_name, kwargs)
 		else:
 			lastModified = (command_name, kwargs)
@@ -492,37 +598,30 @@ class ISearch():
 		self.focus = ISearch.NO_FOCUS
 		self.forward = True
 
-		alsTrace(LOG_ISEARCH, f"cleanup({isAfterClose})")
 		if isAfterClose:
 			WindowEx.get(self.window).clearCustomStatus()
 
-			alsTrace(LOG_ISEARCH, f"cleanup - getmarksel")
 			activeView = self.window.active_view()
 			markSel = MarkSel.get(activeView)
 
-			alsTrace(LOG_ISEARCH, f"cleanup - marksel show selection")
 			markSel.showSelection()
 
-			alsTrace(LOG_ISEARCH, f"cleanup - cleanup drawings")
 			self.cleanupDrawings(activeView)
 
-			alsTrace(LOG_ISEARCH, f"cleanup - clear mark ?")
 			if not markSel.isMarkActive():
-				alsTrace(LOG_ISEARCH, f"yes")
 				markSel.clearAll()
-			else:
-				alsTrace(LOG_ISEARCH, f"no")
-
-			alsTrace(LOG_ISEARCH, f"all done")
 
 	# --- Visibility
 
 	def isShowing(self):
 		return self.inputView and self.inputView.window()
 
-	def open(self, forward=True):
+	def open(self, forward=True, addPrimaryCursorToMarkRing=True):
 
 		markSel = MarkSel.get(self.window.active_view())
+		if addPrimaryCursorToMarkRing:
+			markSel.addPrimaryCursorToMarkRing()
+
 		self.cursorOnOpen = markSel.primaryCursor()
 		self.forward = forward
 		self.focus = ISearch.NO_FOCUS
@@ -530,27 +629,13 @@ class ISearch():
 		if not self.isShowing():
 			# NOTE - Not using self.lastSavedSearch as initial text. That requires a manual re-trigger of search(..) with an empty search string
 			self.inputView = self.window.show_input_panel(ISearch.PANEL_NAME, "", self.onDone, self.onChange, self.onCancel)
-			alsTrace(LOG_ISEARCH, f"open input view ({self.inputView.id()}) : {self.inputView.element()}")
-			alsTrace(LOG_ISEARCH, f"Type: {type(self.inputView)}")
-			alsTrace(LOG_ISEARCH, f"is input view truthy?")
-			alsTrace(LOG_ISEARCH, f"{bool(self.inputView)}")
-			alsTrace(LOG_ISEARCH, f"is input view None?")
-			alsTrace(LOG_ISEARCH, f"{bool(self.inputView is None)}")
 			self.inputViewEx = ViewEx.get(self.inputView)
-			alsTrace(LOG_ISEARCH, f"inputViewEx is ({self.inputViewEx})")
 			self.inputMarkSel = self.inputViewEx.markSel
-			alsTrace(LOG_ISEARCH, f"inputMarkSel is ({self.inputMarkSel})")
 
-		alsTrace(LOG_ISEARCH, f"should I assert?")
 		if not self.inputView:
-			alsTrace(LOG_ISEARCH, f"y")
 			raise AssertionError("i-search has no input view?")
-		else:
-			alsTrace(LOG_ISEARCH, f"no")
 
-		alsTrace(LOG_ISEARCH, f"stealing focus")
 		self.window.focus_view(self.inputView)
-		alsTrace(LOG_ISEARCH, f"done stealing focus")
 		# self.inputView.run_command("select_all")	# HMM/TODO - This seems to somehow clear the text?.... which is actually what I want...
 
 	def close(self):
@@ -565,7 +650,6 @@ class ISearch():
 	# --- Hooks
 
 	def onTextCommand(self, command_name, args):
-		alsTrace(LOG_ISEARCH, f"onTextCommand: {command_name} | {str(args)}")
 		# HMM - I'd rather use (poorly documented) "chain" command here, but that doesn't let me hook into the chained commands :(
 		#		Window seems to and Views seem not to but I've read on the internet that window sometimes messes up too... do I really
 		#		need to write my own custom dispatcher?
@@ -581,13 +665,11 @@ class ISearch():
 		self.close()
 
 	def onDone(self, text):
-		alsTrace(LOG_ISEARCH, f"onChange")
 		self.text = text # HMM - probably unnecessary?
 		self.lastSavedSearch = text
 		self.cleanup(isAfterClose=True)
 
 	def onChange(self, text):
-		alsTrace(LOG_ISEARCH, f"onChange")
 		self.text = text
 		if self.text:
 			self.search(isRepeatedSearch=False)
@@ -595,7 +677,6 @@ class ISearch():
 			pass	# TODO - Any state we want to clean up here, if they type stuff and then delete all the way back?
 
 	def onCancel(self):
-		alsTrace(LOG_ISEARCH, f"onCancel")
 		self.cleanup(isAfterClose=True)
 
 	# --- Operations
