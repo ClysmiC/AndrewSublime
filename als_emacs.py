@@ -653,7 +653,8 @@ class ISearch():
 
 		markSel = MarkSel.get(self.window.active_view())
 		if addPrimaryCursorToMarkRing:
-			markSel.addPrimaryCursorToMarkRing()
+			# markSel.addPrimaryCursorToMarkRing()
+			pass
 
 		self.cursorOnOpen = markSel.primaryCursor()
 		self.forward = forward
