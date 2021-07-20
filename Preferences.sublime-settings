@@ -16,14 +16,14 @@
 	"translate_tabs_to_spaces": false,	// HMM - Reconsider tab/space policy?
 	"tab_size": 4,
 
-	// --- Indent guides
+	// --- Indent
 	"draw_indent_guides": true,
 	"indent_guide_options": ["draw_active"],
-
+	// "indent_to_bracket": true, // I would like this, but it uses spaces all the way for aligment... which maybe is fine? But I generally like tabs-only.
 
 	// --- Font
 	"font_face": "Liberation Mono",
-	"font_size": 11,
+	"font_size": 12.5, // Default 11
 	"font_options": ["no_italic"],
 
 	// --- Color scheme

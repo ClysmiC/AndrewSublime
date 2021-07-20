@@ -49,6 +49,12 @@ class ViewEx():
 		result = sublime.Region(0, self.view.size())
 		return result
 
+
+
+# --- Logging
+
+LOG_TO_FILE = False
+
 LOG_DEBUG = None
 LOG_INIT = None
 LOG_HIDE_PANEL_THEN_RUN = None
@@ -64,7 +70,6 @@ LOG_DEBUG = "DEBUG"
 # LOG_ISEARCH = "i-search"
 # LOG_BUILD = "build"
 LOG_MARK_RING = "mark-ring"
-
 
 
 
@@ -123,10 +128,10 @@ class MarkSel():
 		self.view = view
 		self.selection = view.sel()
 		self.hiddenSelRegion = None			# Supports ISearch focus color not being obscured by a selected region
-		self.markRing = [-1] * 16
-		self.iMarkRingStart = 0
-		self.iMarkRingCycle = 0				# NOTE - Points where next mark will write. Also, what "next" should jump to.
-		self.iMarkRingEnd = 0
+		# self.markRing = [-1] * 16
+		# self.iMarkRingStart = 0
+		# self.iMarkRingCycle = 0				# NOTE - Points where next mark will write. Also, what "next" should jump to.
+		# self.iMarkRingEnd = 0
 		self.clearMark()
 
 	def clearMark(self):
@@ -213,7 +218,8 @@ class MarkSel():
 		self.mark = self.primaryCursor()
 
 		if addToMarkRing:
-			self.addMarkToMarkRing()
+			# self.addMarkToMarkRing()
+			pass
 
 		if selectionAction == SelectionAction.CLEAR:
 			self.selection.clear()
@@ -264,150 +270,150 @@ class MarkSel():
 	# TODO - Maintain historical mark positions even if the buffer has been edited? Emacs does this, but I'm
 	#  not sure how it's implemented. Maybe sublime has something in its API I can use?
 
-	def addToMarkRing(self, iPos, ignoreDuplicate=True):
-		alsTrace(True, f"Adding {iPos} to mark ring (i = {self.iMarkRingEnd}, view element = {self.view.element()}, view id = {self.view.id()}")
+	# def addToMarkRing(self, iPos, ignoreDuplicate=True):
+	# 	alsTrace(True, f"Adding {iPos} to mark ring (i = {self.iMarkRingEnd}, view element = {self.view.element()}, view id = {self.view.id()}")
 
-		iPlace = self.iMarkRingCycle
+	# 	iPlace = self.iMarkRingCycle
 
-		# We may have just jumped to this index, so lets nudge to 1 past.
-		# HMM - Is this right?
+	# 	# We may have just jumped to this index, so lets nudge to 1 past.
+	# 	# HMM - Is this right?
 
-		if self.isIMarkRingValid(self.iMarkRingCycle):
-			iPlace += 1
-			iPlace %= len(self.markRing)
+	# 	if self.isIMarkRingValid(self.iMarkRingCycle):
+	# 		iPlace += 1
+	# 		iPlace %= len(self.markRing)
 
-		if ignoreDuplicate:
-			iPrev = self.iMarkRingCycle - 1
-			if iPrev < 0:
-				iPrev = len(self.markRing) - 1
+	# 	if ignoreDuplicate:
+	# 		iPrev = self.iMarkRingCycle - 1
+	# 		if iPrev < 0:
+	# 			iPrev = len(self.markRing) - 1
 
-			if self.isIMarkRingValid(iPrev):
-				prevMark = self.markRing[iPrev]
-				if iPos == prevMark:
-					alsTrace(True, f"Skipping duplicate addToMarkRing with iPos = {iPos} (same as mark i{iPrev})")
-					return
+	# 		if self.isIMarkRingValid(iPrev):
+	# 			prevMark = self.markRing[iPrev]
+	# 			if iPos == prevMark:
+	# 				alsTrace(True, f"Skipping duplicate addToMarkRing with iPos = {iPos} (same as mark i{iPrev})")
+	# 				return
 
-		self.markRing[iPlace] = iPos
-		self.iMarkRingEnd = iPlace + 1
-		self.iMarkRingEnd %= len(self.markRing)
-		self.iMarkRingCycle = self.iMarkRingEnd
+	# 	self.markRing[iPlace] = iPos
+	# 	self.iMarkRingEnd = iPlace + 1
+	# 	self.iMarkRingEnd %= len(self.markRing)
+	# 	self.iMarkRingCycle = self.iMarkRingEnd
 
-		if self.iMarkRingEnd == self.iMarkRingStart:
-			self.iMarkRingStart += 1
-			self.iMarkRingStart %= len(self.markRing)
+	# 	if self.iMarkRingEnd == self.iMarkRingStart:
+	# 		self.iMarkRingStart += 1
+	# 		self.iMarkRingStart %= len(self.markRing)
 
-		self.debugTraceMarkRing()
+	# 	self.debugTraceMarkRing()
 
-	def addMarkToMarkRing(self):
-		if self.isMarkActive():
-			self.addToMarkRing(self.mark)
+	# def addMarkToMarkRing(self):
+	# 	if self.isMarkActive():
+	# 		self.addToMarkRing(self.mark)
 
-	def addPrimaryCursorToMarkRing(self):
-		alsTrace(LOG_MARK_RING, f"about to add primary cursor of {self.primaryCursor()}")
-		self.addToMarkRing(self.primaryCursor())
+	# def addPrimaryCursorToMarkRing(self):
+	# 	alsTrace(LOG_MARK_RING, f"about to add primary cursor of {self.primaryCursor()}")
+	# 	self.addToMarkRing(self.primaryCursor())
 
-	def markRingCt(self):
-		return self.getVirtualIndex(self.iMarkRingEnd) - self.iMarkRingStart
+	# def markRingCt(self):
+	# 	return self.getVirtualIndex(self.iMarkRingEnd) - self.iMarkRingStart
 
-	def isMarkRingEmpty(self):
-		return self.iMarkRingStart == self.iMarkRingEnd
+	# def isMarkRingEmpty(self):
+	# 	# return self.iMarkRingStart == self.iMarkRingEnd
 
-	def isIMarkRingValid(self, iMarkRing):
-		iOffset = self.getVirtualIndex(iMarkRing) - self.iMarkRingStart
-		return (iOffset < self.markRingCt())
+	# def isIMarkRingValid(self, iMarkRing):
+	# 	# iOffset = self.getVirtualIndex(iMarkRing) - self.iMarkRingStart
+	# 	# return (iOffset < self.markRingCt())
 
-	def getVirtualIndex(self, i):
-		if self.iMarkRingStart > i:
-			return i + len(self.markRing)
+	# def getVirtualIndex(self, i):
+	# 	if self.iMarkRingStart > i:
+	# 		return i + len(self.markRing)
 
-		return i
+	# 	return i
 
-	def cycleMarkPrev(self, leaveMarkRingCrumbIfAtTail=True):
+	# def cycleMarkPrev(self, leaveMarkRingCrumbIfAtTail=True):
 
-		isAtTail = (self.getVirtualIndex(self.iMarkRingCycle) == self.iMarkRingEnd)
+	# 	isAtTail = (self.getVirtualIndex(self.iMarkRingCycle) == self.iMarkRingEnd)
 
-		iPrev = self.iMarkRingCycle - 1
-		if iPrev < 0:
-			iPrev = len(self.markRing) - 1
+	# 	iPrev = self.iMarkRingCycle - 1
+	# 	if iPrev < 0:
+	# 		iPrev = len(self.markRing) - 1
 
-		if not self.isIMarkRingValid(iPrev):
-			alsTrace(LOG_MARK_RING, f"cycle prev, i = {iPrev} is invalid")
-			return
+	# 	if not self.isIMarkRingValid(iPrev):
+	# 		alsTrace(LOG_MARK_RING, f"cycle prev, i = {iPrev} is invalid")
+	# 		return
 
-		# Keep looking back if these marks aren't actually moving us anywhere
+	# 	# Keep looking back if these marks aren't actually moving us anywhere
 
-		markPrev = self.markRing[iPrev]
-		cursor = self.primaryCursor()
+	# 	markPrev = self.markRing[iPrev]
+	# 	cursor = self.primaryCursor()
 
-		if cursor >= 0:
+	# 	if cursor >= 0:
 
-			while cursor >= 0 and markPrev == cursor and iPrev != self.iMarkRingCycle:
-				alsTrace(LOG_MARK_RING, f"cycle prev looping because mark i{iPrev} = {markPrev} and cursor = {cursor}")
+	# 		while cursor >= 0 and markPrev == cursor and iPrev != self.iMarkRingCycle:
+	# 			alsTrace(LOG_MARK_RING, f"cycle prev looping because mark i{iPrev} = {markPrev} and cursor = {cursor}")
 
-				iPrev -= 1
-				if iPrev < 0:
-					iPrev = len(self.markRing) - 1
+	# 			iPrev -= 1
+	# 			if iPrev < 0:
+	# 				iPrev = len(self.markRing) - 1
 
-				if not self.isIMarkRingValid(iPrev):
-					alsTrace(LOG_MARK_RING, f"cycle prev looping, i = {iPrev} is invalid")
-					return
+	# 			if not self.isIMarkRingValid(iPrev):
+	# 				alsTrace(LOG_MARK_RING, f"cycle prev looping, i = {iPrev} is invalid")
+	# 				return
 
-				markPrev = self.markRing[iPrev]
-				alsTrace(LOG_MARK_RING, f"cycle prev looping, i = {iPrev}")
+	# 			markPrev = self.markRing[iPrev]
+	# 			alsTrace(LOG_MARK_RING, f"cycle prev looping, i = {iPrev}")
 
 
-		if markPrev >= 0:
+	# 	if markPrev >= 0:
 
-			# Maybe leave breadcrumb at the tail before jumping away
+	# 		# Maybe leave breadcrumb at the tail before jumping away
 
-			if leaveMarkRingCrumbIfAtTail and isAtTail and markPrev != self.primaryCursor():
-				self.addPrimaryCursorToMarkRing()
+	# 		if leaveMarkRingCrumbIfAtTail and isAtTail and markPrev != self.primaryCursor():
+	# 			self.addPrimaryCursorToMarkRing()
 
-			self.select(sublime.Region(markPrev, markPrev), MarkAction.CLEAR)
-			self.iMarkRingCycle = iPrev
-			if LOG_MARK_RING:
-				self.debugTraceMarkRing()
-				alsTrace(LOG_MARK_RING, f"cycle prev to {markPrev}, i = {self.iMarkRingCycle}")
-		else:
-			raise AssertionError("Mark index is valid but value is <= 0?")
+	# 		self.select(sublime.Region(markPrev, markPrev), MarkAction.CLEAR)
+	# 		self.iMarkRingCycle = iPrev
+	# 		if LOG_MARK_RING:
+	# 			self.debugTraceMarkRing()
+	# 			alsTrace(LOG_MARK_RING, f"cycle prev to {markPrev}, i = {self.iMarkRingCycle}")
+	# 	else:
+	# 		raise AssertionError("Mark index is valid but value is <= 0?")
 
-	def cycleMarkNext(self):
+	# def cycleMarkNext(self):
 
-		iNext = self.iMarkRingCycle + 1
-		iNext %= len(self.markRing)
+	# 	iNext = self.iMarkRingCycle + 1
+	# 	iNext %= len(self.markRing)
 
-		if not self.isIMarkRingValid(iNext):
-			alsTrace(LOG_MARK_RING, f"cycle next, i = {iNext} is invalid")
-			return
+	# 	if not self.isIMarkRingValid(iNext):
+	# 		alsTrace(LOG_MARK_RING, f"cycle next, i = {iNext} is invalid")
+	# 		return
 
-		markNext = self.markRing[iNext]
-		if markNext >= 0:
-			self.select(sublime.Region(markNext, markNext), MarkAction.CLEAR)
-			self.iMarkRingCycle = iNext
-			if LOG_MARK_RING:
-				self.debugTraceMarkRing()
-				alsTrace(LOG_MARK_RING, f"cycle next to {markNext}, i = {self.iMarkRingCycle}")
-		else:
-			raise AssertionError("Mark index is valid but value is <= 0?")
+	# 	markNext = self.markRing[iNext]
+	# 	if markNext >= 0:
+	# 		self.select(sublime.Region(markNext, markNext), MarkAction.CLEAR)
+	# 		self.iMarkRingCycle = iNext
+	# 		if LOG_MARK_RING:
+	# 			self.debugTraceMarkRing()
+	# 			alsTrace(LOG_MARK_RING, f"cycle next to {markNext}, i = {self.iMarkRingCycle}")
+	# 	else:
+	# 		raise AssertionError("Mark index is valid but value is <= 0?")
 
-	def debugTraceMarkRing(self):
-		alsTrace(LOG_MARK_RING, f"\nMark ring for view id = {self.view.id()}")
-		for i in range(len(self.markRing)):
-			endStr = ""
-			isCycleStr = ""
-			if i == self.iMarkRingCycle:
-				isCycleStr = "\t*"
+	# def debugTraceMarkRing(self):
+	# 	alsTrace(LOG_MARK_RING, f"\nMark ring for view id = {self.view.id()}")
+	# 	for i in range(len(self.markRing)):
+	# 		endStr = ""
+	# 		isCycleStr = ""
+	# 		if i == self.iMarkRingCycle:
+	# 			isCycleStr = "\t*"
 
-			if i == self.iMarkRingEnd and i == self.iMarkRingStart:
-				endStr = "\t[]"
-			elif i == self.iMarkRingStart:
-				endStr = "\tX"
-			elif i == self.iMarkRingEnd:
-				endStr = "\tO"
-			elif self.isIMarkRingValid(i):
-				endStr = "\t|"
+	# 		if i == self.iMarkRingEnd and i == self.iMarkRingStart:
+	# 			endStr = "\t[]"
+	# 		elif i == self.iMarkRingStart:
+	# 			endStr = "\tX"
+	# 		elif i == self.iMarkRingEnd:
+	# 			endStr = "\tO"
+	# 		elif self.isIMarkRingValid(i):
+	# 			endStr = "\t|"
 
-			alsTrace(LOG_MARK_RING, f"{i}\t\t{str(self.markRing[i]).zfill(6)}{endStr}{isCycleStr}")
+	# 		alsTrace(LOG_MARK_RING, f"{i}\t\t{str(self.markRing[i]).zfill(6)}{endStr}{isCycleStr}")
 
 
 # --- Text Commands (Prefixed with 'Als' to distinguish between my commands and built-in sublime commands)
@@ -961,7 +967,6 @@ class AlsEventListener(sublime_plugin.EventListener):
 	def on_exit(self):
 		pass
 
-LOG_TO_FILE = False
 def plugin_loaded():
 	if LOG_TO_FILE:
 		with open('als_trace.txt','w') as file:
