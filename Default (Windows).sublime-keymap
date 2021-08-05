@@ -113,19 +113,35 @@
 	//		hook into plain ol' moves for no-op arrow key presses in an input
 	//		panel. Modifiers that move by word/bol/eol don't seem to be an issue.
 	{ "keys": ["up"], "command": "als_hide_panel_then_run",
-		"args": {"command_name": "move", "by": "lines", "forward": false},
+		"args": {
+			"command_name": "move",
+			"command_args": { "by": "lines", "forward": false },
+			"call_on_done": true,
+		},
 		"context": [{ "key": "panel", "operand": "input", }, {"key": "panel_has_focus"}]
 	},
 	{ "keys": ["down"], "command": "als_hide_panel_then_run",
-		"args": {"command_name": "move", "by": "lines", "forward": true},
+		"args": {
+			"command_name": "move",
+			"command_args": { "by": "lines", "forward": true },
+			"call_on_done": true,
+		},
 		"context": [{ "key": "panel", "operand": "input", }, {"key": "panel_has_focus"}]
 	},
 	{ "keys": ["left"], "command": "als_hide_panel_then_run",
-		"args": {"command_name": "move", "by": "characters", "forward": false},
+		"args": {
+			"command_name": "move",
+			"command_args": { "by": "characters", "forward": false },
+			"call_on_done": true,
+		},
 		"context": [{ "key": "panel", "operand": "input", }, {"key": "panel_has_focus"}]
 	},
 	{ "keys": ["right"], "command": "als_hide_panel_then_run",
-		"args": {"command_name": "move", "by": "characters", "forward": true},
+		"args": {
+			"command_name": "move",
+			"command_args": { "by": "characters", "forward": true },
+			"call_on_done": true,
+		},
 		"context": [{ "key": "panel", "operand": "input", }, {"key": "panel_has_focus"}]
 	},
 

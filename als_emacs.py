@@ -1,7 +1,6 @@
 # TODO
-# - Context sensitive status bar (e.g. match # 32/77)
 # - change name from i-search to r-search when reverse-searching? (or i-search (r) ?)
-# - Indent instead of inserting tab when I press tab/shift tab with a single line selected
+#   ... not sure if I can change panel name after opening it... not sure I'd want this in status bar either =/
 # - If initial text matches something but then the text gets changed, start back from the beginning of the search
 # - Make sure searches are highlighted in scroll bar (and maybe minimap?)
 # - If active mark and then search forward a bunch of times and then backwards a bunch of times, shrink the selection back on the backwards searches
@@ -9,7 +8,7 @@
 # - Better streamlined find/replace with yn.! options (see command mode? https://docs.sublimetext.io/reference/key_bindings.html#the-any-character-binding)
 # - (Experiment) Drop mark after incremental search selection?
 # - (Experiment) Consider always dropping a mark any time we have a selection? Why sholudn't shift insert a mark?
-# - Mark ring
+# - Mark ring (implemented, but currently dropped in favor of built-in jump functionality...)
 # - Jump focus to other sublime window (not just other view)
 # - Consolidate all open tabs to 1 window. Option to close duplicates?
 # - Force h on left and cpp on right?
@@ -50,7 +49,6 @@ class ViewEx():
 		return result
 
 
-
 # --- Logging
 
 LOG_TO_FILE = False
@@ -63,13 +61,13 @@ LOG_ISEARCH = None
 LOG_BUILD = None
 LOG_MARK_RING = None
 
-LOG_DEBUG = "DEBUG"
+# LOG_DEBUG = "DEBUG"
 # LOG_INIT = "init2"
 # LOG_HIDE_PANEL_THEN_RUN = "als_hide_panel_then_run"
 # LOG_EVENTS = "event listener"
 # LOG_ISEARCH = "i-search"
 # LOG_BUILD = "build"
-LOG_MARK_RING = "mark-ring"
+# LOG_MARK_RING = "mark-ring"
 
 
 
@@ -100,11 +98,15 @@ class WindowEx():
 	def showCustomStatus(self, text):
 		# HMM - Should we set it for all views? Weird that this is something we set per-view, despite being displayed per-window
 		#	What about new views that get created afterwards...?
-		self.window.active_view().set_status("als_custom", text)
+		view = self.window.active_view()
+		view.set_status("als_padding", "------------------------")	# Unsure how to remove sublime's line/column text in the status bar`.... so I'll at least separate it from my statuses!
+		view.set_status("als_custom", text)
 
 	def clearCustomStatus(self):
 		# HMM - Should we set it for all views? Weird that this is something we set per-view, despite being displayed per-window
-		self.window.active_view().erase_status("als_custom")
+		view = self.window.active_view()
+		view.erase_status("als_padding")
+		view.erase_status("als_custom")
 
 
 # --- Mark/selection (similar to 'transient-mark-mode' in emacs)
@@ -532,10 +534,15 @@ class AlsHidePanelThenRun(sublime_plugin.WindowCommand):
 	"""Auto-close a panel and jump right back into the normal view with a command"""
 	def run(self, **kwargs):
 
+		# TODO - extend this command to run on panels that aren't i-search?
+		#  Do we need to manually track which panel is open...? ugh...
 		iSearch = ISearch.get(self.window)
-		command_name = kwargs.pop('command_name')
+		iSearch.treatCancelLikeDone = kwargs.get("call_on_done", False)
 
-		alsTrace(LOG_HIDE_PANEL_THEN_RUN, str(kwargs))
+		command_name = kwargs["command_name"]
+		command_args = kwargs["command_args"]
+
+		alsTrace(LOG_HIDE_PANEL_THEN_RUN, str(command_args))
 
 		self.window.run_command("hide_panel")
 
@@ -552,14 +559,14 @@ class AlsHidePanelThenRun(sublime_plugin.WindowCommand):
 			# HMM - It might be possible for this to run before AlsEventListener.__init__(..), but it seems very unlikely?
 			#  This is just a safeguard, but the behavior might still be broken if that happens and something was depending on
 			#  the on_text_command hook running
-			modified = AlsEventListener.instance.on_text_command(view, command_name, kwargs)
+			modified = AlsEventListener.instance.on_text_command(view, command_name, command_args)
 
 
 		if modified is None:
 			alsTrace(LOG_HIDE_PANEL_THEN_RUN, f"running {command_name} unmodified")
-			view.run_command(command_name, kwargs)
+			view.run_command(command_name, command_args)
 		else:
-			lastModified = (command_name, kwargs)
+			lastModified = (command_name, command_args)
 			while modified is not None:
 				alsTrace(LOG_HIDE_PANEL_THEN_RUN, f"modified {lastModified[0]} into {modified[0]}")
 				lastModified = modified
@@ -630,6 +637,7 @@ class ISearch():
 		self.cursorOnOpen = -1
 		self.focus = ISearch.NO_FOCUS
 		self.forward = True
+		self.treatCancelLikeDone = False
 
 		if isAfterClose:
 			WindowEx.get(self.window).clearCustomStatus()
@@ -661,7 +669,7 @@ class ISearch():
 		self.focus = ISearch.NO_FOCUS
 
 		if not self.isShowing():
-			# NOTE - Not using self.lastSavedSearch as initial text. That requires a manual re-trigger of search(..) with an empty search string
+			# NOTE - Not using self.lastSavedSearch as initial text. That requires the user manually re-trigger of search(..) with an empty search string
 			self.inputView = self.window.show_input_panel(ISearch.PANEL_NAME, "", self.onDone, self.onChange, self.onCancel)
 			self.inputViewEx = ViewEx.get(self.inputView)
 			self.inputMarkSel = self.inputViewEx.markSel
@@ -670,6 +678,9 @@ class ISearch():
 			raise AssertionError("i-search has no input view?")
 
 		self.window.focus_view(self.inputView)
+
+		windowEx = WindowEx.get(self.window)
+
 		# self.inputView.run_command("select_all")	# HMM/TODO - This seems to somehow clear the text?.... which is actually what I want...
 
 	def close(self):
@@ -711,7 +722,10 @@ class ISearch():
 			pass	# TODO - Any state we want to clean up here, if they type stuff and then delete all the way back?
 
 	def onCancel(self):
-		self.cleanup(isAfterClose=True)
+		if self.treatCancelLikeDone:
+			self.onDone(self.text)
+		else:
+			self.cleanup(isAfterClose=True)
 
 	# --- Operations
 
