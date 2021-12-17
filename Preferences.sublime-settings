@@ -44,6 +44,9 @@
 	// --- Experimenting...
 	// "mini_auto_complete": true, // see https://forum.sublimetext.com/t/making-tab-completion-in-st4-like-st3/58112/10
 
+	// --- Status-bar
+	"show_sidebar_button": false,
+
 	// --- Misc.
 
 	"line_numbers": true,			// HMM - Undecided if I like having the extra space or the extra info...
