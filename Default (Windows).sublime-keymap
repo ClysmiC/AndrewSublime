@@ -21,11 +21,15 @@
 
 	// --- Command palette
 	{ "keys": ["ctrl+shift+p"], "command": "nop" },
-	{ "keys": ["alt+h"], "command": "show_overlay", "args": {"overlay": "command_palette" } },
 
 	// --- Toggle UI
 	{ "keys": ["f1"], "command": "show_panel", "args": {"panel": "console", "toggle": true } },
 	{ "keys": ["ctrl+h", "b"], "command": "toggle_side_bar" },
+
+	//
+	// --- .h/.cpp management
+	{ "keys": ["ctrl+h", "h"], "command": "als_cpp_open_complementary_file_in_opposite_view" },
+	{ "keys": ["ctrl+h", "ctrl+h"], "command": "als_sort_views_by_file_type" },
 
 	//
 	// --- Navigate cursor...
@@ -64,7 +68,7 @@
 	{ "keys": ["ctrl+shift+backspace"], "command": "run_macro_file", "args": {"file": "res://Packages/Default/Delete Line.sublime-macro" } },
 
 	// --- Select all
-	{ "keys": ["ctrl+h", "h"], "command": "select_all" },
+	{ "keys": ["ctrl+h", "a"], "command": "select_all" },
 
 	// --- View/buffer management
 	{ "keys": ["ctrl+h", "o"], "command": "als_other_view" },
@@ -79,7 +83,8 @@
 
 	//
 	// --- Build
-	{ "keys": ["ctrl+h", "m"], "command": "als_run_build_bat" },
+	{ "keys": ["ctrl+h", "m"], "command": "als_build_py" },
+	{ "keys": ["ctrl+h", "ctrl+m"], "command": "als_run_py" },
 
 	// --- Lock font size (only changeable in prefs)
 	// 		# TODO - Do this with a plugin? EventListener doesn't seem to hook into this... I don't think there is an ApplicationCommandListener?

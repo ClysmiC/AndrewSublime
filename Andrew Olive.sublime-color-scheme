@@ -13,6 +13,7 @@
 		"selection": "#696969",
 		"indent_guide": "color(var(foreground) alpha(0.10))",
         "type": "#7ebdbc",
+        "electric-brackets": "#7ebdbc",
         "function_def": "#9ba5c2"
 	},
 	"globals":
@@ -20,6 +21,15 @@
 		"foreground": "var(foreground)",
 		"invisibles": "color(var(foreground) alpha(0.60))", // NOTE - whitespace, when rendered
 		"background": "var(background)",
+
+
+        // brackets light up when you are next to them
+        "brackets_options": "foreground",
+        "brackets_foreground": "var(electric-brackets)",
+
+        // brackets light up when you are inside them
+        "bracket_contents_options": "foreground",
+        "bracket_contents_foreground": "var(electric-brackets)",
 
 		"guide": "var(indent_guide)",
 		"active_guide": "var(indent_guide)",	// NOTE - Active/stack guide are preferences with different behavior.

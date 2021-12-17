@@ -21,6 +21,12 @@ import sublime_plugin
 from enum import Enum
 import traceback #debug
 
+import subprocess
+import sys
+
+from pathlib import Path
+import os
+
 # --- Extra state stored per view
 
 class ViewEx():
@@ -68,7 +74,7 @@ LOG_DEBUG = "DEBUG"
 # LOG_HIDE_PANEL_THEN_RUN = "als_hide_panel_then_run"
 # LOG_EVENTS = "event listener"
 # LOG_ISEARCH = "i-search"
-# LOG_BUILD = "build"
+LOG_BUILD = "build"
 LOG_MARK_RING = "mark-ring"
 
 
@@ -465,20 +471,20 @@ class AlsInflateSelectionToFillLines(sublime_plugin.TextCommand):
 		newRegion = MarkSel.extendRegion(oldRegion, self.view.line(oldRegion))
 		markSel.select(newRegion, MarkAction.SET)
 
+def ensureTwoGroups(window):
+	if window.num_groups() != 2:
+		# HMM - This API is pretty shit, but I think it's the only thing we can do to force 2 groups?
+		window.set_layout({
+		    "cols": [0, 0.5, 1],
+		    "rows": [0, 1],
+		    "cells": [[0, 0, 1, 1], [1, 0, 2, 1]]
+		})
+		window.focus_group(0)	# predictable landing place if we end up having to modify layout!
+
 class AlsOtherView(sublime_plugin.WindowCommand):
 	def run(self):
-		if self.window.num_groups() != 2:
-			# HMM - This API is pretty shit, but I think it's the only thing we can do to force 2 groups?
-			self.window.set_layout({
-			    "cols": [0, 0.5, 1],
-			    "rows": [0, 1],
-			    "cells": [[0, 0, 1, 1], [1, 0, 2, 1]]
-			})
-			self.window.focus_group(1)
-		else:
-			iGroupActive = self.window.active_group()
-			iGroupActiveDesired = (iGroupActive + 1) % self.window.num_groups()
-			self.window.focus_group(iGroupActiveDesired)
+		ensureTwoGroups(self.window)
+		self.window.focus_group(1 if self.window.active_group() == 0 else 0)
 
 class AlsTransposeViews(sublime_plugin.WindowCommand):
 	def run(self):
@@ -493,40 +499,97 @@ class AlsTransposeViews(sublime_plugin.WindowCommand):
 		self.window.set_view_index(view1, 0, 0)
 		self.window.focus_view(activeViewBeforeTranspose)
 
-from pathlib import Path
-import os
+class AlsCppOpenComplementaryFileInOppositeView(sublime_plugin.WindowCommand):
 
-class AlsRunBuildBat(sublime_plugin.WindowCommand):
+	def getComplementaryFilenameIfExists(self, filename, matchDefs):
+		for ext, complements in matchDefs.items():
+			if filename.endswith(ext):
+				for complement in complements:
+					candidate = filename[:-len(ext)] + complement
+					if os.path.exists(candidate):
+						return candidate
+
+		return None
+
 	def run(self):
-		print("RTS_ROOT: " + os.environ['RTS_ROOT'])
+		filename = self.window.active_view().file_name()
 
-		activeView = self.window.active_view()
-		fileName = activeView.file_name()
-		if fileName:
-			directory = Path(activeView.file_name())
-			if not directory.is_dir():
-				directory = directory.parent
+		# TODO - worth extending to .cxx, .cc, and other extensions that I don't really use (yet)?
+		matchDefinitions = {
+			'.h': ['.c', '.cpp'],
+			'.hpp': ['.cpp', '.c'],
+			'.c': ['.h', '.hpp'],
+			'.cpp': ['.h', '.hpp']	# NOTE - I think .hpp extension is kinda dumb so I break the pattern and prioritize .h
+		}
 
-			if not directory.is_dir():	raise AssertionError("Can't find directory to run build file")
+		complementaryFilename = self.getComplementaryFilenameIfExists(filename, matchDefinitions)
+		if not complementaryFilename:
+			return
 
-			buildFile = None
-			while True:
-				buildFile = directory / "build.bat"
-				if buildFile.exists():
-					break
+		ensureTwoGroups(self.window)
+		self.window.run_command("als_other_view")	# Move focus into the view that we will populate
 
-				# HMM - Is this really the only/best way to check if we are at the root directory...? Sigh...
-				parent = directory.parent
-				if directory.samefile(parent):
-					break
+		complementaryView = self.window.find_open_file(complementaryFilename)
+		if complementaryView:
+			# Populate with existing view
+			self.window.set_view_index(complementaryView, self.window.active_group(), 0)
+		else:
+			# Populate by opening new file
+			# TODO - verify that this succeeds? If getComplementaryFilenameIfExists does its job, it should...
+			self.window.open_file(complementaryFilename)
 
-				directory = parent
+class AlsSortViewsByFileType(sublime_plugin.WindowCommand):
+	def run(self):
+		ensureTwoGroups(self.window)	# HMM - Should this be an early out instead?
 
-			if buildFile and buildFile.exists():
-				alsTrace(LOG_BUILD, f"Running {str(buildFile)}")
-				self.window.run_command("exec", { "shell_cmd": str(buildFile)})
-			else:
-				alsTrace(LOG_BUILD, "No build.bat found")
+		leftExtensions = ['.h', '.hpp']
+		rightExtensions = ['.c', '.cpp']
+
+		# TODO
+		# - Remember two current active views
+		# - Move all left ext files to group 0
+		# - Move all right ext files to group 1
+		# - (Leave non-matching extensions untouched)
+		# - (Prefer to leave previous two active views still active)
+		# - (If they are both in the same group, then whichever one had focus wins out)
+
+def findAndRunPythonInFileDirectoryOrParent(activeView, script_name):
+	fileName = activeView.file_name()
+	if fileName:
+		directory = Path(activeView.file_name())
+		if not directory.is_dir():
+			directory = directory.parent
+
+		if not directory.is_dir():	raise AssertionError("Can't find directory to run script")
+
+		scriptFile = None
+		while True:
+			scriptFile = directory / (f"{script_name}.py")
+			if scriptFile.exists():
+				break
+
+			# HMM - Is this really the only/best way to check if we are at the root directory...? Sigh...
+			parent = directory.parent
+			if directory.samefile(parent):
+				break
+
+			directory = parent
+
+		if scriptFile and scriptFile.exists():
+			alsTrace(LOG_BUILD, f"Running {str(scriptFile)}")
+			out = subprocess.run(["py", str(scriptFile)], capture_output=True, text=True).stdout
+			print(out)
+		else:
+			alsTrace(LOG_BUILD, f"ERROR: No {str(scriptFile)} found")
+
+
+class AlsBuildPy(sublime_plugin.WindowCommand):
+	def run(self):
+		findAndRunPythonInFileDirectoryOrParent(self.window.active_view(), "build")
+
+class AlsRunPy(sublime_plugin.WindowCommand):
+	def run(self):
+		findAndRunPythonInFileDirectoryOrParent(self.window.active_view(), "run")
 
 class AlsHidePanelThenRun(sublime_plugin.WindowCommand):
 	"""Auto-close a panel and jump right back into the normal view with a command"""
