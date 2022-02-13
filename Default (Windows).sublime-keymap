@@ -8,6 +8,10 @@
 	{ "keys": ["alt+keypad_minus"], "command": "nop" },
 	{ "keys": ["alt+shift+keypad_minus"], "command": "nop" },
 
+	// --- Unbind things I'm reserving for future
+	{ "keys": ["alt+n"], "command": "nop" },			// TODO - goto next compiler error
+	{ "keys": ["alt+shift+n"], "command": "nop" },		// TODO - goto prev compiler error
+
 	// --- Redo
 	{ "keys": ["ctrl+y"], "command": "redo" }, // Instead of default 'redo_or_repeat' which does this weird (but apparently standard?) behavior: https://support.microsoft.com/en-us/office/undo-redo-or-repeat-an-action-84bdb9bc-4e23-4f06-ba78-f7b893eb2d28
 

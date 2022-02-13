@@ -1,4 +1,5 @@
 # TODO
+# - EXPERIMENT: Add a hotkey (or implement) to "shift selection left/right a character/word", only works if selection is on single line
 # - change name from i-search to r-search when reverse-searching? (or i-search (r) ?)
 #   ... not sure if I can change panel name after opening it... not sure I'd want this in status bar either =/
 # - If initial text matches something but then the text gets changed, start back from the beginning of the search
@@ -585,6 +586,8 @@ def findAndRunPythonInFileDirectoryOrParent(activeView, script_name):
 
 class AlsBuildPy(sublime_plugin.WindowCommand):
 	def run(self):
+		print("\n" * 25)		# HACK
+		self.window.run_command("save_all")		# HMM - Should we reduce this to only saving the files below the directory of the build script?
 		findAndRunPythonInFileDirectoryOrParent(self.window.active_view(), "build")
 
 class AlsRunPy(sublime_plugin.WindowCommand):
@@ -762,6 +765,7 @@ class ISearch():
 
 		if command_name == "move" or command_name == "move_to":
 			args["command_name"] = command_name
+			args["call_on_done"] = True # HACK
 			self.window.run_command("als_hide_panel_then_run", args)
 			return ("", None)
 

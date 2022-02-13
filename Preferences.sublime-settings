@@ -24,7 +24,7 @@
 
 	// --- Font
 	"font_face": "Liberation Mono",
-	"font_size": 13, // Default 12, Streaming 12.5
+	"font_size": 12.5, // Default 12.5, Streaming 14
 	"font_options": ["no_italic"],
 
 	// --- Color scheme
