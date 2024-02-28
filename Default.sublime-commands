@@ -1,3 +1,10 @@
 [
 	// { "caption": "Andrew Test Command", "command": "als_test_command" },
+	{
+	    "caption": "Terminus: Run build.ps1",
+	    "command": "terminus_open",
+	    "args": {
+	    	"cmd": "powershell.exe W:/2RTS/build.ps1",
+	    }
+	},
 ]

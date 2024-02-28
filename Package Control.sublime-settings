@@ -6,5 +6,6 @@
 	"installed_packages":
 	[
 		"Package Control",
+		"Terminus",
 	],
 }

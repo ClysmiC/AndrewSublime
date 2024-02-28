@@ -1,4 +1,7 @@
 [
+	{ "keys": ["ctrl+,"], "command": "als_test_panel1" },
+	{ "keys": ["ctrl+."], "command": "als_test_panel2" },
+
 	// --- Unbind some default bindings
 	{ "keys": ["ctrl+h"], "command": "nop" },
 	{ "keys": ["ctrl+w"], "command": "nop" }, // No more accidentally closing the window due to my emacs brain :)
@@ -24,7 +27,7 @@
 	// { "keys": ["alt+shift+;"], "command": "als_debug_trace_mark_ring" },
 
 	// --- Command palette
-	{ "keys": ["ctrl+shift+p"], "command": "nop" },
+	// { "keys": ["ctrl+shift+p"], "command": "nop" },
 
 	// --- Toggle UI
 	{ "keys": ["f1"], "command": "show_panel", "args": {"panel": "console", "toggle": true } },
@@ -87,8 +90,8 @@
 
 	//
 	// --- Build
-	{ "keys": ["ctrl+h", "m"], "command": "als_build_py" },
-	{ "keys": ["ctrl+h", "ctrl+m"], "command": "als_run_py" },
+	{ "keys": ["ctrl+h", "m"], "command": "als_build_powershell" },
+	{ "keys": ["ctrl+h", "ctrl+m"], "command": "als_run_powershell" },
 
 	// --- Lock font size (only changeable in prefs)
 	// 		# TODO - Do this with a plugin? EventListener doesn't seem to hook into this... I don't think there is an ApplicationCommandListener?

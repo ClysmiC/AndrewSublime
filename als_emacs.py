@@ -27,6 +27,37 @@ import sys
 from pathlib import Path
 import os
 
+# --- Logging
+
+LOG_TO_FILE = False
+
+LOG_DEBUG				= None #or "debug"
+LOG_INIT				= None #or "init"
+LOG_HIDE_PANEL_THEN_RUN = None #or "als_hide_panel_then_run"
+LOG_EVENTS				= None #or "event listener"
+LOG_ISEARCH				= None #or "i-search"
+LOG_BUILD				= None #or "build"
+LOG_MARK_RING			= None #or "mark-ring"
+
+def plugin_loaded():
+	if LOG_TO_FILE:
+		with open('plugin_trace.txt','w') as file:
+		    pass	# NOTE - Clears file
+
+def trace(tag, text):
+	if tag:
+		if LOG_TO_FILE:
+			# SLOW - opening file every time we log, lol
+			with open('plugin_trace.txt', 'a') as file:
+				timestamp = time.time()
+				timestamp %= 100
+				timestamp *= 1000
+				timestamp = round(timestamp)
+				timestamp /= 1000
+				file.write(f"{timestamp} :::: [{tag}] {text}\n")
+		else:
+			print(text)
+
 # --- Extra state stored per view
 
 class ViewEx():
@@ -38,9 +69,7 @@ class ViewEx():
 
 	@staticmethod
 	def get(view):
-
 		result = ViewEx.dictionary.get(view.id())
-
 		if result is None:
 			result = ViewEx(view)
 			ViewEx.dictionary[view.id()] = result
@@ -56,27 +85,6 @@ class ViewEx():
 		return result
 
 
-# --- Logging
-
-LOG_TO_FILE = False
-
-LOG_DEBUG = None
-LOG_INIT = None
-LOG_HIDE_PANEL_THEN_RUN = None
-LOG_EVENTS = None
-LOG_ISEARCH = None
-LOG_BUILD = None
-LOG_MARK_RING = None
-
-# LOG_DEBUG = "DEBUG"
-# LOG_INIT = "init2"
-# LOG_HIDE_PANEL_THEN_RUN = "als_hide_panel_then_run"
-# LOG_EVENTS = "event listener"
-# LOG_ISEARCH = "i-search"
-# LOG_BUILD = "build"
-# LOG_MARK_RING = "mark-ring"
-
-
 # --- Extra state stored per view window
 
 class WindowEx():
@@ -85,11 +93,11 @@ class WindowEx():
 	def __init__(self, window):
 		self.window = window
 		self.iSearch = ISearch(window)
+		self.inputPanel = InputPanel(window)
 
 	@staticmethod
 	def get(window):
 		result = WindowEx.dictionary.get(window.id())
-
 		if result is None:
 			result = WindowEx(window)
 			WindowEx.dictionary[window.id()] = result
@@ -278,7 +286,7 @@ class MarkSel():
 	#  not sure how it's implemented. Maybe sublime has something in its API I can use?
 
 	# def addToMarkRing(self, iPos, ignoreDuplicate=True):
-	# 	alsTrace(True, f"Adding {iPos} to mark ring (i = {self.iMarkRingEnd}, view element = {self.view.element()}, view id = {self.view.id()}")
+	# 	trace(True, f"Adding {iPos} to mark ring (i = {self.iMarkRingEnd}, view element = {self.view.element()}, view id = {self.view.id()}")
 
 	# 	iPlace = self.iMarkRingCycle
 
@@ -297,7 +305,7 @@ class MarkSel():
 	# 		if self.isIMarkRingValid(iPrev):
 	# 			prevMark = self.markRing[iPrev]
 	# 			if iPos == prevMark:
-	# 				alsTrace(True, f"Skipping duplicate addToMarkRing with iPos = {iPos} (same as mark i{iPrev})")
+	# 				trace(True, f"Skipping duplicate addToMarkRing with iPos = {iPos} (same as mark i{iPrev})")
 	# 				return
 
 	# 	self.markRing[iPlace] = iPos
@@ -316,7 +324,7 @@ class MarkSel():
 	# 		self.addToMarkRing(self.mark)
 
 	# def addPrimaryCursorToMarkRing(self):
-	# 	alsTrace(LOG_MARK_RING, f"about to add primary cursor of {self.primaryCursor()}")
+	# 	trace(LOG_MARK_RING, f"about to add primary cursor of {self.primaryCursor()}")
 	# 	self.addToMarkRing(self.primaryCursor())
 
 	# def markRingCt(self):
@@ -344,7 +352,7 @@ class MarkSel():
 	# 		iPrev = len(self.markRing) - 1
 
 	# 	if not self.isIMarkRingValid(iPrev):
-	# 		alsTrace(LOG_MARK_RING, f"cycle prev, i = {iPrev} is invalid")
+	# 		trace(LOG_MARK_RING, f"cycle prev, i = {iPrev} is invalid")
 	# 		return
 
 	# 	# Keep looking back if these marks aren't actually moving us anywhere
@@ -355,18 +363,18 @@ class MarkSel():
 	# 	if cursor >= 0:
 
 	# 		while cursor >= 0 and markPrev == cursor and iPrev != self.iMarkRingCycle:
-	# 			alsTrace(LOG_MARK_RING, f"cycle prev looping because mark i{iPrev} = {markPrev} and cursor = {cursor}")
+	# 			trace(LOG_MARK_RING, f"cycle prev looping because mark i{iPrev} = {markPrev} and cursor = {cursor}")
 
 	# 			iPrev -= 1
 	# 			if iPrev < 0:
 	# 				iPrev = len(self.markRing) - 1
 
 	# 			if not self.isIMarkRingValid(iPrev):
-	# 				alsTrace(LOG_MARK_RING, f"cycle prev looping, i = {iPrev} is invalid")
+	# 				trace(LOG_MARK_RING, f"cycle prev looping, i = {iPrev} is invalid")
 	# 				return
 
 	# 			markPrev = self.markRing[iPrev]
-	# 			alsTrace(LOG_MARK_RING, f"cycle prev looping, i = {iPrev}")
+	# 			trace(LOG_MARK_RING, f"cycle prev looping, i = {iPrev}")
 
 
 	# 	if markPrev >= 0:
@@ -380,7 +388,7 @@ class MarkSel():
 	# 		self.iMarkRingCycle = iPrev
 	# 		if LOG_MARK_RING:
 	# 			self.debugTraceMarkRing()
-	# 			alsTrace(LOG_MARK_RING, f"cycle prev to {markPrev}, i = {self.iMarkRingCycle}")
+	# 			trace(LOG_MARK_RING, f"cycle prev to {markPrev}, i = {self.iMarkRingCycle}")
 	# 	else:
 	# 		raise AssertionError("Mark index is valid but value is <= 0?")
 
@@ -390,7 +398,7 @@ class MarkSel():
 	# 	iNext %= len(self.markRing)
 
 	# 	if not self.isIMarkRingValid(iNext):
-	# 		alsTrace(LOG_MARK_RING, f"cycle next, i = {iNext} is invalid")
+	# 		trace(LOG_MARK_RING, f"cycle next, i = {iNext} is invalid")
 	# 		return
 
 	# 	markNext = self.markRing[iNext]
@@ -399,12 +407,12 @@ class MarkSel():
 	# 		self.iMarkRingCycle = iNext
 	# 		if LOG_MARK_RING:
 	# 			self.debugTraceMarkRing()
-	# 			alsTrace(LOG_MARK_RING, f"cycle next to {markNext}, i = {self.iMarkRingCycle}")
+	# 			trace(LOG_MARK_RING, f"cycle next to {markNext}, i = {self.iMarkRingCycle}")
 	# 	else:
 	# 		raise AssertionError("Mark index is valid but value is <= 0?")
 
 	# def debugTraceMarkRing(self):
-	# 	alsTrace(LOG_MARK_RING, f"\nMark ring for view id = {self.view.id()}")
+	# 	trace(LOG_MARK_RING, f"\nMark ring for view id = {self.view.id()}")
 	# 	for i in range(len(self.markRing)):
 	# 		endStr = ""
 	# 		isCycleStr = ""
@@ -420,7 +428,7 @@ class MarkSel():
 	# 		elif self.isIMarkRingValid(i):
 	# 			endStr = "\t|"
 
-	# 		alsTrace(LOG_MARK_RING, f"{i}\t\t{str(self.markRing[i]).zfill(6)}{endStr}{isCycleStr}")
+	# 		trace(LOG_MARK_RING, f"{i}\t\t{str(self.markRing[i]).zfill(6)}{endStr}{isCycleStr}")
 
 
 # --- Text Commands (Prefixed with 'Als' to distinguish between my commands and built-in sublime commands)
@@ -554,7 +562,7 @@ class AlsSortViewsByFileType(sublime_plugin.WindowCommand):
 		# - (Prefer to leave previous two active views still active)
 		# - (If they are both in the same group, then whichever one had focus wins out)
 
-def findAndRunPythonInFileDirectoryOrParent(activeView, script_name):
+def findAndRunScript_inCurrentDirectory_orParent(activeView, command_name, script_name):
 	fileName = activeView.file_name()
 	if fileName:
 		directory = Path(activeView.file_name())
@@ -565,7 +573,7 @@ def findAndRunPythonInFileDirectoryOrParent(activeView, script_name):
 
 		scriptFile = None
 		while True:
-			scriptFile = directory / (f"{script_name}.py")
+			scriptFile = directory / (f"{script_name}")
 			if scriptFile.exists():
 				break
 
@@ -577,22 +585,104 @@ def findAndRunPythonInFileDirectoryOrParent(activeView, script_name):
 			directory = parent
 
 		if scriptFile and scriptFile.exists():
-			alsTrace(LOG_BUILD, f"Running {str(scriptFile)}")
-			out = subprocess.run(["py", str(scriptFile)], capture_output=True, text=True).stdout
+			trace(LOG_BUILD, f"Running {str(scriptFile)}")
+			out = subprocess.run([command_name, str(scriptFile)], capture_output=True, text=True).stdout
 			print(out)
 		else:
-			alsTrace(LOG_BUILD, f"ERROR: No {str(scriptFile)} found")
+			trace(LOG_BUILD, f"ERROR: No {str(scriptFile)} found")
+
+# def findAndRunPython_inCurrentOrParentDirectory(activeView, script_name):
+# 	fileName = activeView.file_name()
+# 	if fileName:
+# 		directory = Path(activeView.file_name())
+# 		if not directory.is_dir():
+# 			directory = directory.parent
+
+# 		if not directory.is_dir():	raise AssertionError("Can't find directory to run script")
+
+# 		scriptFile = None
+# 		while True:
+# 			scriptFile = directory / (f"{script_name}.py")
+# 			if scriptFile.exists():
+# 				break
+
+# 			# HMM - Is this really the only/best way to check if we are at the root directory...? Sigh...
+# 			parent = directory.parent
+# 			if directory.samefile(parent):
+# 				break
+
+# 			directory = parent
+
+# 		if scriptFile and scriptFile.exists():
+# 			trace(LOG_BUILD, f"Running {str(scriptFile)}")
+# 			out = subprocess.run(["py", str(scriptFile)], capture_output=True, text=True).stdout
+# 			print(out)
+# 		else:
+# 			trace(LOG_BUILD, f"ERROR: No {str(scriptFile)} found")
+
+# def findAndRunPowershell_inCurrentOrParentDirectory(activeView, script_name):
+# 	fileName = activeView.file_name()
+# 	if fileName:
+# 		directory = Path(activeView.file_name())
+# 		if not directory.is_dir():
+# 			directory = directory.parent
+
+# 		if not directory.is_dir():	raise AssertionError("Can't find directory to run script")
+
+# 		scriptFile = None
+# 		while True:
+# 			scriptFile = directory / (f"{script_name}.ps1")
+# 			if scriptFile.exists():
+# 				break
+
+# 			# HMM - Is this really the only/best way to check if we are at the root directory...? Sigh...
+# 			parent = directory.parent
+# 			if directory.samefile(parent):
+# 				break
+
+# 			directory = parent
+
+# 		if scriptFile and scriptFile.exists():
+# 			trace(LOG_BUILD, f"Running {str(scriptFile)}")
+# 			out = subprocess.run(["powershell.exe", str(scriptFile)], capture_output=True, text=True).stdout
+# 			print(out)
+# 		else:
+# 			trace(LOG_BUILD, f"ERROR: No {str(scriptFile)} found")
 
 
 class AlsBuildPy(sublime_plugin.WindowCommand):
 	def run(self):
 		print("\n" * 25)		# HACK
 		self.window.run_command("save_all")		# HMM - Should we reduce this to only saving the files below the directory of the build script?
-		findAndRunPythonInFileDirectoryOrParent(self.window.active_view(), "build")
+		findAndRunScript_inCurrentDirectory_orParent(
+        	self.window.active_view(),
+        	"python.exe",
+        	"build.py")
 
 class AlsRunPy(sublime_plugin.WindowCommand):
 	def run(self):
-		findAndRunPythonInFileDirectoryOrParent(self.window.active_view(), "run")
+		findAndRunScript_inCurrentDirectory_orParent(
+	    	self.window.active_view(),
+	    	"python.exe",
+	    	"run.py")
+
+class AlsBuildPowershell(sublime_plugin.WindowCommand):
+	def run(self):
+		self.window.run_command("hide_panel")
+		self.window.run_command("save_all")		# HMM - Should we reduce this to only saving the files below the directory of the build script?
+		findAndRunScript_inCurrentDirectory_orParent(
+        	self.window.active_view(),
+        	"powershell.exe",
+        	"build.ps1")
+
+class AlsRunPowershell(sublime_plugin.WindowCommand):
+	def run(self):
+		print("\n" * 25)		# HACK
+		self.window.run_command("save_all")		# HMM - Should we reduce this to only saving the files below the directory of the build script?
+		findAndRunScript_inCurrentDirectory_orParent(
+        	self.window.active_view(),
+        	"powershell.exe",
+        	"run.ps1")
 
 class AlsHidePanelThenRun(sublime_plugin.WindowCommand):
 	"""Auto-close a panel and jump right back into the normal view with a command"""
@@ -606,7 +696,7 @@ class AlsHidePanelThenRun(sublime_plugin.WindowCommand):
 		command_name = kwargs["command_name"]
 		command_args = kwargs["command_args"]
 
-		alsTrace(LOG_HIDE_PANEL_THEN_RUN, str(command_args))
+		trace(LOG_HIDE_PANEL_THEN_RUN, str(command_args))
 
 		self.window.run_command("hide_panel")
 
@@ -625,18 +715,17 @@ class AlsHidePanelThenRun(sublime_plugin.WindowCommand):
 			#  the on_text_command hook running
 			modified = AlsEventListener.instance.on_text_command(view, command_name, command_args)
 
-
 		if modified is None:
-			alsTrace(LOG_HIDE_PANEL_THEN_RUN, f"running {command_name} unmodified")
+			trace(LOG_HIDE_PANEL_THEN_RUN, f"running {command_name} unmodified")
 			view.run_command(command_name, command_args)
 		else:
 			lastModified = (command_name, command_args)
 			while modified is not None:
-				alsTrace(LOG_HIDE_PANEL_THEN_RUN, f"modified {lastModified[0]} into {modified[0]}")
+				trace(LOG_HIDE_PANEL_THEN_RUN, f"modified {lastModified[0]} into {modified[0]}")
 				lastModified = modified
 				modified = AlsEventListener.instance.on_text_command(view, modified[0], modified[1])
 
-			alsTrace(LOG_HIDE_PANEL_THEN_RUN, f"running {lastModified[0]} (modified)")
+			trace(LOG_HIDE_PANEL_THEN_RUN, f"running {lastModified[0]} (modified)")
 			view.run_command(lastModified[0], lastModified[1])
 
 # --- I-Search
@@ -668,7 +757,6 @@ class ISearch():
 
 	# --- Constants
 
-	INPUT_ELEMENT = "input:input"
 	PANEL_NAME = "i-search"
 	FOUND_REGION_NAME = "als_find_highlight"
 	FOCUS_REGION_NAME = "als_find_focus"
@@ -689,6 +777,7 @@ class ISearch():
 
 	@staticmethod
 	def get(window):
+		trace(LOG_ISEARCH, "getting i-search mgr for window " + str(window.id()))
 		return WindowEx.get(window).iSearch
 
 	def __init__(self, window):
@@ -697,6 +786,7 @@ class ISearch():
 		self.cleanup(isAfterClose=False)
 
 	def cleanup(self, isAfterClose):
+		trace(LOG_ISEARCH, "cleanup")
 		self.inputView = None
 		self.cursorOnOpen = -1
 		self.focus = ISearch.NO_FOCUS
@@ -704,6 +794,7 @@ class ISearch():
 		self.treatCancelLikeDone = False
 
 		if isAfterClose:
+			trace(LOG_ISEARCH, "isAfterClose")
 			WindowEx.get(self.window).clearCustomStatus()
 
 			activeView = self.window.active_view()
@@ -714,6 +805,7 @@ class ISearch():
 			self.cleanupDrawings(activeView)
 
 			if not markSel.isMarkActive():
+				trace(LOG_ISEARCH, "clearing mark")
 				markSel.clearAll()
 
 	# --- Visibility
@@ -722,6 +814,7 @@ class ISearch():
 		return self.inputView and self.inputView.window()
 
 	def open(self, forward=True, addPrimaryCursorToMarkRing=True):
+		trace(LOG_ISEARCH, "open")
 
 		markSel = MarkSel.get(self.window.active_view())
 		if addPrimaryCursorToMarkRing:
@@ -732,15 +825,25 @@ class ISearch():
 		self.forward = forward
 		self.focus = ISearch.NO_FOCUS
 
+		trace(LOG_ISEARCH, "check if showing")
+
 		if not self.isShowing():
+			trace(LOG_ISEARCH, "not already showing...")
 			# NOTE - Not using self.lastSavedSearch as initial text. That requires the user manually re-trigger of search(..) with an empty search string
 			self.inputView = self.window.show_input_panel(ISearch.PANEL_NAME, "", self.onDone, self.onChange, self.onCancel)
 			self.inputViewEx = ViewEx.get(self.inputView)
 			self.inputMarkSel = self.inputViewEx.markSel
+		else:
+			trace(LOG_ISEARCH, "already showing...")
+
+		if not self.isShowing():
+			trace(LOG_ISEARCH, "!!! we should be showing now but we are not")
 
 		if not self.inputView:
+			trace(LOG_ISEARCH, "!!! asserting")
 			raise AssertionError("i-search has no input view?")
 
+		trace(LOG_ISEARCH, "showing...")
 		self.window.focus_view(self.inputView)
 
 		windowEx = WindowEx.get(self.window)
@@ -748,8 +851,13 @@ class ISearch():
 		# self.inputView.run_command("select_all")	# HMM/TODO - This seems to somehow clear the text?.... which is actually what I want...
 
 	def close(self):
+		trace(LOG_ISEARCH, "close")
 		if self.isShowing():
-			self.window.run_command("hide_panel")
+			if self.inputView.window():
+				trace(LOG_ISEARCH, "(hide_panel)")
+				self.inputView.window().run_command("hide_panel")
+			else:
+				trace(LOG_ISEARCH, "no window? not hiding...")
 
 	def cleanupDrawings(self, view):
 		view.erase_regions(ISearch.FOUND_REGION_NAME)
@@ -772,9 +880,12 @@ class ISearch():
 		return None
 
 	def onDeactivated(self):
-		self.close()
+		trace(LOG_ISEARCH, "on_deactivated")
+		if self.isShowing():
+			self.close()
 
 	def onDone(self, text):
+		trace(LOG_ISEARCH, "on_done")
 		self.text = text # HMM - probably unnecessary?
 		self.lastSavedSearch = text
 		self.cleanup(isAfterClose=True)
@@ -787,6 +898,7 @@ class ISearch():
 			pass	# TODO - Any state we want to clean up here, if they type stuff and then delete all the way back?
 
 	def onCancel(self):
+		trace(LOG_ISEARCH, "on_cancel")
 		if self.treatCancelLikeDone:
 			self.onDone(self.text)
 		else:
@@ -799,7 +911,7 @@ class ISearch():
 		isRepeatedSearch,
 		edit=None):		# NOTE - required iff isRepeatedSearch
 
-		alsTrace(LOG_ISEARCH, f"BEGIN SEARCH FOR {self.text}")
+		trace(LOG_ISEARCH, f"BEGIN SEARCH FOR {self.text}")
 
 		if isRepeatedSearch != (edit is not None):		raise AssertionError("Repeated searches require an 'edit' to behave properly in the case of an empty 'self.text'")
 
@@ -921,19 +1033,19 @@ class ISearch():
 				scope=ISearch.EXTRA_SELECTION_REGION_NAME)
 
 			if wrappedAround:
-				if self.forward:	alsTrace(LOG_ISEARCH, f"wraparound match found at ({match.a}, {match.b}) - ideal start: {searchFrom})")
-				else:				alsTrace(LOG_ISEARCH, f"wraparound match (r) found at ({match.a}, {match.b}) - ideal end: {searchFrom})")
+				if self.forward:	trace(LOG_ISEARCH, f"wraparound match found at ({match.a}, {match.b}) - ideal start: {searchFrom})")
+				else:				trace(LOG_ISEARCH, f"wraparound match (r) found at ({match.a}, {match.b}) - ideal end: {searchFrom})")
 			else:
-				if self.forward:	alsTrace(LOG_ISEARCH, f"match found at ({match.a}, {match.b}) - ideal start: {searchFrom})")
-				else:				alsTrace(LOG_ISEARCH, f"match (r) found at ({match.a}, {match.b}) - ideal end: {searchFrom})")
+				if self.forward:	trace(LOG_ISEARCH, f"match found at ({match.a}, {match.b}) - ideal start: {searchFrom})")
+				else:				trace(LOG_ISEARCH, f"match (r) found at ({match.a}, {match.b}) - ideal end: {searchFrom})")
 		else:
 			# TODO - play beep here?
 			windowEx.showCustomStatus(f"No matches")
 			self.focus = ISearch.Focus(ISearch.Focus.State.NIL, None)
 			self.cleanupDrawings(activeView)
 
-			if self.forward:	alsTrace(LOG_ISEARCH, "No match found")
-			else: 				alsTrace(LOG_ISEARCH, "No match (r) found")
+			if self.forward:	trace(LOG_ISEARCH, "No match found")
+			else: 				trace(LOG_ISEARCH, "No match (r) found")
 
 
 
@@ -944,7 +1056,8 @@ class AlsIncrementalSearch(sublime_plugin.TextCommand):		# NOTE - TextCommand in
 		iSearch = ISearch.get(self.view.window())
 
 		# --- Detect re-search
-		if self.view.element() == ISearch.INPUT_ELEMENT:
+		# TODO
+		if self.view.element() == InputPanel.ELEMENT_NAME:
 			iSearch.forward = forward
 			iSearch.search(isRepeatedSearch=True, edit=edit)
 			return
@@ -971,11 +1084,11 @@ class AlsEventListener(sublime_plugin.EventListener):
 		# IMPORTANT - Altering the return value feeds the altered command back into this function.
 		#  Only return a tuple if you have actually altered things, otherwise there is inifnite recursion!
 
-		alsTrace(LOG_EVENTS, "[event listener] text_command: " + command_name)
+		trace(LOG_EVENTS, "text_command: " + command_name)
 
 		# Maybe dispatch to input view
 
-		if view.element() == ISearch.INPUT_ELEMENT:
+		if view.element() == InputPanel.ELEMENT_NAME:
 			iSearch = ISearch.get(view.window())
 			return iSearch.onTextCommand(command_name, args)
 
@@ -1005,7 +1118,7 @@ class AlsEventListener(sublime_plugin.EventListener):
 		# NOTE - Commands that don't modify the buffer are handled here.
 		#  All buffer-modifying commands are handled in on_modified
 
-		alsTrace(LOG_EVENTS, "[event listener] on_post_text_command")
+		trace(LOG_EVENTS, "on_post_text_command")
 
 		if command_name == "copy":
 			markSel = MarkSel.get(view)
@@ -1015,7 +1128,7 @@ class AlsEventListener(sublime_plugin.EventListener):
 		# NOTE - Anything that affects contents of buffer will hook into
 		#  this function
 
-		alsTrace(LOG_EVENTS, "[event listener] on_modified")
+		trace(LOG_EVENTS, "on_modified")
 
 		markSel = MarkSel.get(view)
 		if markSel is None:
@@ -1027,37 +1140,85 @@ class AlsEventListener(sublime_plugin.EventListener):
 			markSel.clearAll()
 
 	def on_window_command(self, window, command_name, args):
-		alsTrace(LOG_EVENTS, "[event listener] window_command: " + command_name)
+		trace(LOG_EVENTS, "window_command: " + command_name)
 
 		return None
 
 	def on_activated(self, view):
-		alsTrace(LOG_EVENTS, "view activated: " + str(view.element()))
+		trace(LOG_EVENTS, "view activated: " + str(view.element()))
 
-	# FIXME - If uncommented, always crashing the second search!!!!!
-	# def on_deactivated(self, view):
-	# 	alsTrace(LOG_EVENTS, "view deactivated: " + str(view.element()))
+	def on_deactivated_async(self, view):
+		# NOTE - must use async for this, otherwise sublime crashes
+		# https://github.com/sublimehq/sublime_text/issues/5403
 
-	# 	# Maybe dispatch to input view
+		# UGH - But this DOESN'T actually work because the view's window becomes None...
+		#  we don't have timing guarantees since this is the async version...
 
-	# 	if view.element() == ISearch.INPUT_ELEMENT:
-	# 		iSearch = ISearch.get(view.window())
-	# 		return iSearch.onDeactivated()
+		trace(LOG_EVENTS, "view deactivated (async): " + str(view.element()))
+
+		# Maybe dispatch to input view
+
+		if view.element() == InputPanel.ELEMENT_NAME:
+			if view.window() == None:
+				print("WTFFFFFFFFFFFFFFF")
+			else:
+				inputPanel = InputPanel.get(view.window())
+				inputPanel.onDeactivated()
 
 	def on_exit(self):
 		pass
 
-def plugin_loaded():
-	if LOG_TO_FILE:
-		with open('als_trace.txt','w') as file:
-		    pass	# NOTE - Clears file
+class AlsTestPanel1(sublime_plugin.WindowCommand):
+	def run(self):
+		print("t1")
+		inputPanel = InputPanel.get(self.window)
+		inputPanel.open("test 1")
 
-# TODO - alsAssert which logs + exits on failure, instead of raising AssertionError
-def alsTrace(tag, line):
-	if tag:
-		if LOG_TO_FILE:
-			# SLOW - opening file every time we log lol
-			with open('als_trace.txt', 'a') as file:
-				file.write(f"[{tag}] {line}\n")
+class AlsTestPanel2(sublime_plugin.WindowCommand):
+	def run(self):
+		print("t2")
+		inputPanel = InputPanel.get(self.window)
+		inputPanel.open("test 2")
+
+class InputPanel():
+
+	LOG_TAG = None # or "input-panel"
+	ELEMENT_NAME = "input:input"
+
+	def __init__(self, window):
+		self.window = window
+		self.view = None
+		self.name = None
+
+	@staticmethod
+	def get(window):
+		trace(InputPanel.LOG_TAG, "getting i-search mgr for window " + str(window.id()))
+		return WindowEx.get(window).inputPanel
+
+	def onDeactivated(self):
+		trace(InputPanel.LOG_TAG, "onDeactivated(..), name = " + str(self.name))
+		self.close()
+
+	def isShowing(self, name):
+		return self.view and self.view.window() and self.name == name
+
+	# TODO pass onDone, onChange, onCancel as params?
+	# TODO what to do if we are already showing and we get this call?
+	# Should we "re-open" and wire up new handlers?
+	def open(self, name, onDone=None, onChange=None, onCancel=None):
+		trace(InputPanel.LOG_TAG, "open(..), name = " + str(name))
+
+		if self.isShowing(name):
+			trace(InputPanel.LOG_TAG, "\tcalling focus_view(..)")
+			self.window.focus_view(self.view)
 		else:
-			print(line)
+			trace(InputPanel.LOG_TAG, "\tcalling show_input_panel(..)")
+			self.view = self.window.show_input_panel(name, "", self.on_done, None, self.on_cancel)
+			self.name = name
+			trace(InputPanel.LOG_TAG, "\tself.view = " + str(self.view))
+
+	def close(self):
+		trace(InputPanel.LOG_TAG, "close(..), name = " + str(self.name))
+		if self.isShowing(self.name):
+			trace(InputPanel.LOG_TAG, '\tcalling run_command("hide_panel")')
+			self.view.window().run_command("hide_panel")

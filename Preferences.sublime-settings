@@ -14,7 +14,7 @@
 	"trim_only_modified_white_space": true,
 	"ensure_newline_at_eof_on_save": true,
 	"default_line_ending": "unix",
-	"translate_tabs_to_spaces": false,	// HMM - Reconsider tab/space policy?
+	"translate_tabs_to_spaces": true,
 	"tab_size": 4,
 
 	// --- Indent
@@ -74,4 +74,5 @@
 	[
 		"Vintage",
 	],
+	"index_files": true,
 }
