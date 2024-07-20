@@ -56,7 +56,6 @@
 	"scroll_speed": 0.5,
 
 
-	"auto_match_enabled": true,		// NOTE - match delimiters, like ( { ' "
 	"auto_complete": false,				// HMM - Consider looking into this feature and turning on some minimal tab-completion
 	"copy_with_empty_selection": false, // HMM - Consider turning back on. Turned off to mitigate damage from accidental C-x misfires due to emacs brain.
 	"drag_text": false,
