@@ -36,7 +36,6 @@
 	//
 	// --- .h/.cpp management
 	{ "keys": ["ctrl+h", "h"], "command": "als_cpp_open_complementary_file_in_opposite_view" },
-	{ "keys": ["ctrl+h", "ctrl+h"], "command": "als_sort_views_by_file_type" },
 
 	//
 	// --- Navigate cursor...

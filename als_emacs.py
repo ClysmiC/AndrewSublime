@@ -42,7 +42,7 @@ LOG_MARK_RING			= None #or "mark-ring"
 def plugin_loaded():
 	if LOG_TO_FILE:
 		with open('plugin_trace.txt','w') as file:
-		    pass	# NOTE - Clears file
+			pass	# NOTE - Clears file
 
 def trace(tag, text):
 	if tag:
@@ -484,9 +484,9 @@ def ensureTwoGroups(window):
 	if window.num_groups() != 2:
 		# HMM - This API is pretty shit, but I think it's the only thing we can do to force 2 groups?
 		window.set_layout({
-		    "cols": [0, 0.5, 1],
-		    "rows": [0, 1],
-		    "cells": [[0, 0, 1, 1], [1, 0, 2, 1]]
+			"cols": [0, 0.5, 1],
+			"rows": [0, 1],
+			"cells": [[0, 0, 1, 1], [1, 0, 2, 1]]
 		})
 		window.focus_group(0)	# predictable landing place if we end up having to modify layout!
 
@@ -546,21 +546,6 @@ class AlsCppOpenComplementaryFileInOppositeView(sublime_plugin.WindowCommand):
 			# Populate by opening new file
 			# TODO - verify that this succeeds? If getComplementaryFilenameIfExists does its job, it should...
 			self.window.open_file(complementaryFilename)
-
-class AlsSortViewsByFileType(sublime_plugin.WindowCommand):
-	def run(self):
-		ensureTwoGroups(self.window)	# HMM - Should this be an early out instead?
-
-		leftExtensions = ['.h', '.hpp']
-		rightExtensions = ['.c', '.cpp']
-
-		# TODO
-		# - Remember two current active views
-		# - Move all left ext files to group 0
-		# - Move all right ext files to group 1
-		# - (Leave non-matching extensions untouched)
-		# - (Prefer to leave previous two active views still active)
-		# - (If they are both in the same group, then whichever one had focus wins out)
 
 def findAndRunScript_inCurrentDirectory_orParent(activeView, command_name, script_name):
 	fileName = activeView.file_name()
@@ -655,34 +640,34 @@ class AlsBuildPy(sublime_plugin.WindowCommand):
 		print("\n" * 25)		# HACK
 		self.window.run_command("save_all")		# HMM - Should we reduce this to only saving the files below the directory of the build script?
 		findAndRunScript_inCurrentDirectory_orParent(
-        	self.window.active_view(),
-        	"python.exe",
-        	"build.py")
+			self.window.active_view(),
+			"python.exe",
+			"build.py")
 
 class AlsRunPy(sublime_plugin.WindowCommand):
 	def run(self):
 		findAndRunScript_inCurrentDirectory_orParent(
-	    	self.window.active_view(),
-	    	"python.exe",
-	    	"run.py")
+			self.window.active_view(),
+			"python.exe",
+			"run.py")
 
 class AlsBuildPowershell(sublime_plugin.WindowCommand):
 	def run(self):
 		self.window.run_command("hide_panel")
 		self.window.run_command("save_all")		# HMM - Should we reduce this to only saving the files below the directory of the build script?
 		findAndRunScript_inCurrentDirectory_orParent(
-        	self.window.active_view(),
-        	"powershell.exe",
-        	"build.ps1")
+			self.window.active_view(),
+			"powershell.exe",
+			"build.ps1")
 
 class AlsRunPowershell(sublime_plugin.WindowCommand):
 	def run(self):
 		print("\n" * 25)		# HACK
 		self.window.run_command("save_all")		# HMM - Should we reduce this to only saving the files below the directory of the build script?
 		findAndRunScript_inCurrentDirectory_orParent(
-        	self.window.active_view(),
-        	"powershell.exe",
-        	"run.ps1")
+			self.window.active_view(),
+			"powershell.exe",
+			"run.ps1")
 
 class AlsHidePanelThenRun(sublime_plugin.WindowCommand):
 	"""Auto-close a panel and jump right back into the normal view with a command"""
@@ -1075,9 +1060,11 @@ class AlsIncrementalSearch(sublime_plugin.TextCommand):		# NOTE - TextCommand in
 class AlsEventListener(sublime_plugin.EventListener):
 
 	instance = None
+	transient_filenames = set()
 
 	def on_init(self, viewsCurrentlyLoaded):
 		AlsEventListener.instance = self
+		self.sync_views()
 
 	def on_text_command(self, view, command_name, args):
 
@@ -1145,7 +1132,19 @@ class AlsEventListener(sublime_plugin.EventListener):
 		return None
 
 	def on_activated(self, view):
-		trace(LOG_EVENTS, "view activated: " + str(view.element()))
+		if not view.file_name():	# unsaved file
+		    return
+
+		window = sublime.active_window()
+		if not window:
+			return
+
+		is_transient = window.get_view_index(view)[1] == -1
+		was_transient = view.file_name() in self.transient_filenames
+
+		if was_transient and not is_transient:
+			self.transient_filenames.remove(view.file_name())
+			self.sync_views()
 
 	def on_deactivated_async(self, view):
 		# NOTE - must use async for this, otherwise sublime crashes
@@ -1167,6 +1166,71 @@ class AlsEventListener(sublime_plugin.EventListener):
 
 	def on_exit(self):
 		pass
+
+	def sync_views(self, closed_files=[]):
+		window = sublime.active_window()
+		ensureTwoGroups(window)
+
+		# Get active groups
+		group_0 = [v.file_name() for v in window.views_in_group(0) if v.file_name()]
+		group_1 = [v.file_name() for v in window.views_in_group(1) if v.file_name()]
+
+		# Remember focused group/views
+		active_group = window.active_group()
+		group_0_active_view = window.active_view_in_group(0)
+		group_1_active_view = window.active_view_in_group(1)
+
+		# Merge file lists
+		all_files = (set(group_0) | set(group_1)) - set(closed_files)
+
+		# Close extra files
+		for view in window.views():
+			if not view.file_name() or view.file_name() not in all_files:
+				view.close()
+
+		# Open files as necessary
+		for file in all_files:
+			if file not in group_0:
+				window.open_file(file, group=0, flags=sublime.FORCE_GROUP)
+			if file not in group_1:
+				window.open_file(file, group=1, flags=sublime.FORCE_GROUP)
+
+		# Restore focus
+		if group_0_active_view and group_0_active_view.file_name() in all_files:
+			window.focus_view(group_0_active_view)
+
+		if group_1_active_view and group_1_active_view.file_name() in all_files:
+			window.focus_view(group_1_active_view)
+
+		window.focus_group(active_group)
+
+	def on_load(self, view):
+		""" Called when a file is loaded/opened. """
+		filename = view.file_name()
+		if not filename:	# unsaved buffer
+			return
+
+		window = sublime.active_window()
+		if not window:
+			return
+
+		is_transient = window.get_view_index(view)[1] == -1
+		if is_transient:
+			self.transient_filenames.add(filename)
+		else:
+			self.sync_views()
+
+	def on_close(self, view):
+		""" Called when a file is closed. """
+		filename = view.file_name()
+		window = sublime.active_window()
+		was_transient = filename in self.transient_filenames
+		if was_transient:
+			self.transient_filenames.remove(filename)
+			return
+
+		# Delay execution to allow Sublime to handle UI updates
+		sublime.set_timeout(lambda: self.sync_views([filename]), 100)
 
 class AlsTestPanel1(sublime_plugin.WindowCommand):
 	def run(self):
