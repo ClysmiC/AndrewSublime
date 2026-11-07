@@ -33,7 +33,7 @@ LOG_TO_FILE = False
 
 LOG_DEBUG				= None #or "debug"
 LOG_INIT				= None #or "init"
-LOG_HIDE_PANEL_THEN_RUN = None #or "als_hide_panel_then_run"
+LOG_HIDE_PANEL_THEN_RUN = None or "als_hide_panel_then_run"
 LOG_EVENTS				= None #or "event listener"
 LOG_ISEARCH				= None #or "i-search"
 LOG_BUILD				= None #or "build"
@@ -547,6 +547,20 @@ class AlsCppOpenComplementaryFileInOppositeView(sublime_plugin.WindowCommand):
 			# TODO - verify that this succeeds? If getComplementaryFilenameIfExists does its job, it should...
 			self.window.open_file(complementaryFilename)
 
+# class AlsOpenCurrentResultInOppositeView(sublime_plugin.WindowCommand):
+# 	def run(self):
+# 		ensureTwoGroups(self.window)
+
+# 		window = self.window
+# 		current_group = window.active_group()
+# 		opposite_group = 1 if current_group == 0 else 0  # Toggle between 0 and 1
+
+# 		# Open the file (in the same group as the Find Results tab)
+# 		window.run_command("current_result")
+
+# 		# Move the newly opened file to the opposite group
+# 		sublime.set_timeout(lambda: window.set_view_index(window.active_view(), opposite_group, 0), 10)
+
 def findAndRunScript_inCurrentDirectory_orParent(activeView, command_name, script_name):
 	fileName = activeView.file_name()
 	if fileName:
@@ -677,9 +691,10 @@ class AlsHidePanelThenRun(sublime_plugin.WindowCommand):
 		#  Do we need to manually track which panel is open...? ugh...
 		iSearch = ISearch.get(self.window)
 		iSearch.treatCancelLikeDone = kwargs.get("call_on_done", False)
+		trace(LOG_HIDE_PANEL_THEN_RUN, f"call_on_done? {iSearch.treatCancelLikeDone}")
 
-		command_name = kwargs["command_name"]
-		command_args = kwargs["command_args"]
+		command_name = kwargs.get("command_name", {})
+		command_args = kwargs.get("command_args", {})
 
 		trace(LOG_HIDE_PANEL_THEN_RUN, str(command_args))
 
@@ -1133,7 +1148,7 @@ class AlsEventListener(sublime_plugin.EventListener):
 
 	def on_activated(self, view):
 		if not view.file_name():	# unsaved file
-		    return
+			return
 
 		window = sublime.active_window()
 		if not window:
@@ -1185,7 +1200,8 @@ class AlsEventListener(sublime_plugin.EventListener):
 
 		# Close extra files
 		for view in window.views():
-			if not view.file_name() or view.file_name() not in all_files:
+			if view.file_name() and view.file_name() not in all_files:
+				print(f"CLOSING {view.file_name()}")
 				view.close()
 
 		# Open files as necessary

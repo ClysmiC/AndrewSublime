@@ -26,6 +26,10 @@
 	{ "keys": ["alt+shift+h"], "command": "jump_back" },
 	// { "keys": ["alt+shift+;"], "command": "als_debug_trace_mark_ring" },
 
+	// --- Forward/back views
+	{ "keys": ["ctrl+t"], "command": "next_view_in_stack" },
+	{ "keys": ["ctrl+shift+t"], "command": "prev_view_in_stack" },
+
 	// --- Command palette
 	// { "keys": ["ctrl+shift+p"], "command": "nop" },
 
@@ -36,6 +40,17 @@
 	//
 	// --- .h/.cpp management
 	{ "keys": ["ctrl+h", "h"], "command": "als_cpp_open_complementary_file_in_opposite_view" },
+
+	// --- "Find in Files"
+	// --- TODO figure out why this isn't working...
+	{
+	    "keys": ["enter"],
+	    // "command": "als_open_current_result_in_opposite_view",
+	    "command": "current_result",
+	    "context": [
+	        { "key": "selector", "operator": "equal", "operand": "text.find-in-files" }
+	    ]
+	},
 
 	//
 	// --- Navigate cursor...
@@ -111,8 +126,6 @@
 	// --- Paste
 	{ "keys": ["ctrl+v"], "command": "paste_and_indent" },
 	{ "keys": ["ctrl+shift+v"], "command": "paste" },
-
-
 
 	//
 	// --- Custom incremental search
